@@ -106,6 +106,23 @@ class SourceProviderTest extends TestCase
 		self::assertSame(dirname($project->sourcePath('3.3.14')), $provider->runs[0]['cwd']);
 	}
 
+	public function testFetchComposerNormalizesLegacyPackageVersionsMetadata(): void
+	{
+		$project = $this->project();
+		$provider = new CompatibilitySourceProvider($project);
+		$path = $project->sourcePath('3.3.2');
+
+		$provider->fetch([
+			'type' => 'composer',
+			'constraint' => '3.3.2',
+			'path' => $path,
+		]);
+
+		self::assertSame([
+			['name' => 'ocramius/proxy-manager', 'version' => '2.1.1'],
+		], json_decode((string) file_get_contents($path . '/vendor/composer/installed.json'), true));
+	}
+
 	public function testFetchGitNormalizesPhpbbSubdirectoryAndRunsComposerInstall(): void
 	{
 		$project = $this->project();
@@ -124,6 +141,66 @@ class SourceProviderTest extends TestCase
 		self::assertFileDoesNotExist($path . '/phpBB/common.php');
 		self::assertSame('git', $provider->runs[0]['command'][0]);
 		self::assertSame(['composer-bin', 'install', '--no-interaction', '--ignore-platform-reqs'], $provider->runs[1]['command']);
+	}
+
+	public function testFetchGitNormalizesLegacyPackageVersionsMetadata(): void
+	{
+		$project = $this->project();
+		$provider = new CompatibilitySourceProvider($project);
+		$path = $project->sourcePath('custom');
+
+		$provider->fetch([
+			'type' => 'git',
+			'url' => 'https://github.com/phpbb/phpbb.git',
+			'branch' => 'release-3.3.2',
+			'version' => 'release-3.3.2',
+			'path' => $path,
+		]);
+
+		self::assertSame([
+			['name' => 'ocramius/proxy-manager', 'version' => '2.1.1'],
+		], json_decode((string) file_get_contents($path . '/vendor/composer/installed.json'), true));
+	}
+
+	public function testEnsureNormalizesReusedComposerSource(): void
+	{
+		$project = $this->project();
+		$this->addDownloadedSource($project, '3.3.2');
+		$path = $project->sourcePath('3.3.2');
+		$this->addLegacyComposerMetadata($path);
+
+		(new TestSourceProvider($project))->ensure('3.3.2');
+
+		self::assertSame([
+			['name' => 'ocramius/proxy-manager', 'version' => '2.1.1'],
+		], json_decode((string) file_get_contents($path . '/vendor/composer/installed.json'), true));
+	}
+
+	public function testEnsureLeavesGeneratedPackageVersionsMetadataUntouched(): void
+	{
+		$project = $this->project();
+		$this->addDownloadedSource($project, '3.3.2');
+		$path = $project->sourcePath('3.3.2');
+		$this->addLegacyComposerMetadata($path, false);
+		$installedPath = $path . '/vendor/composer/installed.json';
+		$metadata = file_get_contents($installedPath);
+
+		(new TestSourceProvider($project))->ensure('3.3.2');
+
+		self::assertSame($metadata, file_get_contents($installedPath));
+	}
+
+	public function testEnsureRejectsUnsupportedFallbackMetadata(): void
+	{
+		$project = $this->project();
+		$this->addDownloadedSource($project, '3.3.2');
+		$path = $project->sourcePath('3.3.2');
+		$this->addLegacyComposerMetadata($path);
+		file_put_contents($path . '/vendor/composer/installed.json', '{}');
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Unsupported Composer metadata format');
+		(new TestSourceProvider($project))->ensure('3.3.2');
 	}
 
 	public function testAddGitSourceAcceptsCloneUrlEndingInGit(): void
@@ -265,6 +342,22 @@ class SourceProviderTest extends TestCase
 		];
 		$project->writeJson('sources.json', $sources);
 	}
+
+	private function addLegacyComposerMetadata(string $path, bool $fallback = true): void
+	{
+		$versionsDirectory = $path . '/vendor/ocramius/package-versions/src/PackageVersions';
+		$composerDirectory = $path . '/vendor/composer';
+		mkdir($versionsDirectory, 0775, true);
+		mkdir($composerDirectory, 0775, true);
+		$versions = $fallback ? '[]' : "['phpbb/phpbb' => '3.3.2']";
+		file_put_contents($versionsDirectory . '/Versions.php', "<?php final class Versions { const VERSIONS = $versions; }");
+		file_put_contents($composerDirectory . '/installed.json', json_encode([
+			'packages' => [
+				['name' => 'ocramius/proxy-manager', 'version' => '2.1.1'],
+			],
+			'dev' => true,
+		]));
+	}
 }
 
 class TestSourceProvider extends SourceProvider
@@ -293,6 +386,43 @@ class TestSourceProvider extends SourceProvider
 	protected function capture(array $command, string $cwd): array
 	{
 		return array_shift($this->captures) ?: ['status' => 1, 'output' => ''];
+	}
+}
+
+class CompatibilitySourceProvider extends TestSourceProvider
+{
+	protected function run(array $command, string $cwd): void
+	{
+		parent::run($command, $cwd);
+		if (($command[1] ?? '') === 'create-project')
+		{
+			$this->addLegacyComposerMetadata($command[3]);
+		}
+		else if (($command[1] ?? '') === 'install')
+		{
+			$this->addLegacyComposerMetadata($cwd);
+		}
+	}
+
+	private function addLegacyComposerMetadata(string $path): void
+	{
+		$versionsDirectory = $path . '/vendor/ocramius/package-versions/src/PackageVersions';
+		$composerDirectory = $path . '/vendor/composer';
+		if (!is_dir($versionsDirectory))
+		{
+			mkdir($versionsDirectory, 0775, true);
+		}
+		if (!is_dir($composerDirectory))
+		{
+			mkdir($composerDirectory, 0775, true);
+		}
+		file_put_contents($versionsDirectory . '/Versions.php', '<?php final class Versions { const VERSIONS = []; }');
+		file_put_contents($composerDirectory . '/installed.json', json_encode([
+			'packages' => [
+				['name' => 'ocramius/proxy-manager', 'version' => '2.1.1'],
+			],
+			'dev' => true,
+		]));
 	}
 }
 

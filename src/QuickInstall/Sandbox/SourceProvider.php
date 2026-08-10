@@ -359,6 +359,7 @@ class SourceProvider
 
 			$this->normalizeGitSourceRoot($path);
 			$this->run($this->composerCommand(['install', '--no-interaction', '--ignore-platform-reqs']), $path);
+			ComposerMetadataCompatibility::normalizePackageVersions($path);
 			return;
 		}
 
@@ -385,6 +386,7 @@ class SourceProvider
 		}
 
 		$this->run($command, dirname($path));
+		ComposerMetadataCompatibility::normalizePackageVersions($path);
 	}
 
 	protected function normalizeGitSourceRoot(string $path): void
@@ -470,6 +472,7 @@ class SourceProvider
 
 	protected function withInstalledSourceMetadata(array $source, ?string $defaultPhp): array
 	{
+		ComposerMetadataCompatibility::normalizePackageVersions($source['path'] ?? '');
 		$detectedVersion = $this->detectedPhpbbVersion($source['path'] ?? '');
 		if ($detectedVersion !== null)
 		{

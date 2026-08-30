@@ -123,6 +123,7 @@ YAML;
 		$extensionVolumes = $this->extensionVolumes($config['extensions'] ?? []);
 		$styleVolumes = $this->styleVolumes($config['styles'] ?? []);
 		$cookiePath = $config['cookie_path'] ?? '/';
+		$rewriteBase = rtrim($config['script_path'] ?? '/', '/') . '/';
 		$dbPath = $this->project->workspacePath('db/' . $name);
 		if (!is_dir($dbPath) && !mkdir($dbPath, 0775, true) && !is_dir($dbPath))
 		{
@@ -151,6 +152,7 @@ services:
       QUICKINSTALL_POPULATE: "{$config['populate']}"
       QUICKINSTALL_BOARD_TIMEZONE: "{$config['board_timezone']}"
       QUICKINSTALL_COOKIE_PATH: "$cookiePath"
+      QUICKINSTALL_REWRITE_BASE: "$rewriteBase"
 
 $dbService
 
@@ -262,6 +264,7 @@ RUN {$aptSourceSetup}apt-get update \\
     && apt-get install -y --no-install-recommends $packages \\
     && docker-php-ext-install mbstring zip \\
 {$sodiumInstall}    && $extensionInstall \\
+    && a2enmod rewrite \\
     && for extension in $requiredExtensions; do php -m | grep -qi "^\${extension}$"; done \\
     && rm -rf /var/lib/apt/lists/*
 
@@ -300,6 +303,10 @@ fi
 
 if [ -f /var/www/html/config.php ] && [ ! -s /var/www/html/config.php ]; then
 	rm -f /var/www/html/config.php
+fi
+
+if [ "${QUICKINSTALL_REWRITE_BASE:-/}" != "/" ] && [ -f /var/www/html/.htaccess ]; then
+	sed -i "s|^#RewriteBase /$|RewriteBase ${QUICKINSTALL_REWRITE_BASE}|" /var/www/html/.htaccess
 fi
 
 if [ ! -s /var/www/html/config.php ] && [ -f /var/www/html/install/phpbbcli.php ]; then

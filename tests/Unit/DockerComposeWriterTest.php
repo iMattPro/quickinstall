@@ -29,9 +29,13 @@ class DockerComposeWriterTest extends TestCase
 		self::assertStringContainsString('config:set board_timezone "$QUICKINSTALL_BOARD_TIMEZONE"', $entrypoint);
 		self::assertStringContainsString('config:set board_timezone UTC', $entrypoint);
 		self::assertStringContainsString('config:set cookie_path "${QUICKINSTALL_COOKIE_PATH:-/}"', $entrypoint);
+		self::assertStringContainsString('RewriteBase ${QUICKINSTALL_REWRITE_BASE}', $entrypoint);
 		self::assertStringContainsString("is unsupported by this PHP runtime; using UTC.", $entrypoint);
 		self::assertStringContainsString('QUICKINSTALL_BOARD_TIMEZONE: "America/Los_Angeles"', file_get_contents($paths['compose']));
 		self::assertStringContainsString('QUICKINSTALL_COOKIE_PATH: "/demo/"', file_get_contents($paths['compose']));
+		self::assertStringContainsString('QUICKINSTALL_REWRITE_BASE: "/demo/"', file_get_contents($paths['compose']));
+		self::assertStringNotContainsString("\t", file_get_contents($paths['compose']));
+		self::assertStringContainsString('a2enmod rewrite', file_get_contents($paths['dockerfile']));
 
 		$output = file_get_contents($paths['compose']) . "\n" . file_get_contents($paths['install_config']) . "\n" . file_get_contents($paths['dockerfile']);
 		foreach ($expectedContains as $expected)

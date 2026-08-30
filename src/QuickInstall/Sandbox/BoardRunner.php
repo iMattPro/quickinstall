@@ -44,7 +44,7 @@ class BoardRunner
 			throw new RuntimeException('SQLite boards support populate:none, tiny, or development only. Use mariadb, mysql, or postgres for heavier fixture presets.');
 		}
 		$this->seedIfNeeded($name, $board['populate'] ?? 'none');
-		$this->waitUntilHttpReady($name, $board['url'] ?? '');
+		$this->waitUntilHttpReady($name, $board['health_url'] ?? ($board['url'] ?? ''));
 	}
 
 	public function stop(string $name): void

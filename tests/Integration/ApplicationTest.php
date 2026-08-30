@@ -158,6 +158,7 @@ class ApplicationTest extends TestCase
 		$result = $this->runApplication($root, ['qi', 'board:create', 'demo', '--phpbb', '3.3.14', '--port', (string) $this->availablePort()], "maybe\nn\n");
 
 		self::assertSame(0, $result['exit_code']);
+		self::assertMatchesRegularExpression('#URL after start: http://localhost:\d+/demo/#', $result['output']);
 		self::assertStringContainsString('Please answer y or n.', $result['output']);
 		self::assertSame(2, substr_count($result['output'], 'Run this command now? [Y/n]: '));
 	}

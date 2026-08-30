@@ -35,11 +35,13 @@ class DockerComposeWriter
 		$compose = $runtimeDir . '/compose.yml';
 		$dockerfile = $runtimeDir . '/Dockerfile';
 		$entrypoint = $runtimeDir . '/entrypoint.sh';
+		$apacheConfig = $runtimeDir . '/apache.conf';
 
 		$this->writeFile($installConfig, $this->installConfig($name, $config));
 		$this->writeFile($compose, $this->compose($name, $config));
 		$this->writeFile($dockerfile, $this->dockerfile($config));
 		$this->writeFile($entrypoint, $this->entrypoint($config));
+		$this->writeFile($apacheConfig, $this->apacheConfig($name, $config));
 		if ((PHP_OS_FAMILY !== 'Windows') && !chmod($entrypoint, 0755))
 		{
 			throw new RuntimeException("Unable to make entrypoint executable: $entrypoint");
@@ -50,6 +52,7 @@ class DockerComposeWriter
 			'install_config' => $installConfig,
 			'dockerfile' => $dockerfile,
 			'entrypoint' => $entrypoint,
+			'apache_config' => $apacheConfig,
 		];
 	}
 
@@ -72,6 +75,8 @@ class DockerComposeWriter
 		$adminPass = $this->yamlString($config['admin_pass']);
 		$adminEmail = $this->yamlString($config['admin_email']);
 		$boardName = $this->yamlString($name);
+		$serverName = $this->yamlString($config['server_name'] ?? 'localhost');
+		$scriptPath = $this->yamlString($config['script_path'] ?? '/');
 
 		return <<<YAML
 installer:
@@ -102,9 +107,9 @@ installer:
     cookie_secure: false
     server_protocol: http://
     force_server_vars: true
-    server_name: localhost
+    server_name: $serverName
     server_port: {$config['port']}
-    script_path: /
+    script_path: $scriptPath
   extensions: []
 
 YAML;
@@ -112,11 +117,12 @@ YAML;
 
 	private function compose(string $name, array $config): string
 	{
-		$dbService = $this->databaseService($config['db'], $name, $config['php']);
+		$dbService = $this->databaseService($config['db'], $name, $config['php'], !empty($config['postgres_data_subdir']));
 		$sourcePath = $this->project->sourcePath($config['phpbb_source'] ?? $config['phpbb']);
 		$boardPath = $this->project->boardPath($name);
 		$extensionVolumes = $this->extensionVolumes($config['extensions'] ?? []);
 		$styleVolumes = $this->styleVolumes($config['styles'] ?? []);
+		$cookiePath = $config['cookie_path'] ?? '/';
 		$dbPath = $this->project->workspacePath('db/' . $name);
 		if (!is_dir($dbPath) && !mkdir($dbPath, 0775, true) && !is_dir($dbPath))
 		{
@@ -135,7 +141,7 @@ services:
       # Boards are intentionally unavailable to other network devices.
       - "127.0.0.1:{$config['port']}:80"
     volumes:
-{$this->bindVolume($sourcePath, '/opt/phpbb-source', true)}{$this->bindVolume($boardPath, '/var/www/html')}{$extensionVolumes}{$styleVolumes}{$this->bindVolume('./install-config.yml', '/opt/quickinstall/install-config.yml', true)}{$this->bindVolume('./entrypoint.sh', '/opt/quickinstall/entrypoint.sh', true)}
+{$this->bindVolume($sourcePath, '/opt/phpbb-source', true)}{$this->bindVolume($boardPath, '/var/www/html')}{$extensionVolumes}{$styleVolumes}{$this->bindVolume('./install-config.yml', '/opt/quickinstall/install-config.yml', true)}{$this->bindVolume('./entrypoint.sh', '/opt/quickinstall/entrypoint.sh', true)}{$this->bindVolume('./apache.conf', '/etc/apache2/conf-enabled/quickinstall.conf', true)}
     entrypoint: ["/bin/sh", "/opt/quickinstall/entrypoint.sh"]
     depends_on:
       db:
@@ -144,6 +150,7 @@ services:
       QUICKINSTALL_PHPBB_VERSION: "{$config['phpbb']}"
       QUICKINSTALL_POPULATE: "{$config['populate']}"
       QUICKINSTALL_BOARD_TIMEZONE: "{$config['board_timezone']}"
+      QUICKINSTALL_COOKIE_PATH: "$cookiePath"
 
 $dbService
 
@@ -171,6 +178,27 @@ YAML;
 		}
 
 		return $volumes;
+	}
+
+	/** Routes a scoped board URL to phpBB's unchanged document root. */
+	private function apacheConfig(string $name, array $config): string
+	{
+		$serverName = $config['server_name'] ?? 'localhost';
+		if (empty($config['scoped_path']))
+		{
+			return "ServerName $serverName\nLimitRequestFieldSize 65536\n";
+		}
+
+		$path = '/' . $name;
+		$pattern = preg_quote($path, '#');
+		return <<<APACHE
+ServerName $serverName
+LimitRequestFieldSize 65536
+RedirectMatch 302 "^/$" "$path/"
+RedirectMatch 302 "^$pattern$" "$path/"
+Alias "$path/" "/var/www/html/"
+
+APACHE;
 	}
 
 	private function styleVolumes(array $styles): string
@@ -277,6 +305,7 @@ fi
 if [ ! -s /var/www/html/config.php ] && [ -f /var/www/html/install/phpbbcli.php ]; then
 	php /var/www/html/install/phpbbcli.php install /opt/quickinstall/install-config.yml
 	rm -rf /var/www/html/install
+	php /var/www/html/bin/phpbbcli.php config:set cookie_path "${QUICKINSTALL_COOKIE_PATH:-/}"
 	if php -r 'try { new DateTimeZone((string) getenv("QUICKINSTALL_BOARD_TIMEZONE")); } catch (Exception $e) { exit(1); }'; then
 		php /var/www/html/bin/phpbbcli.php config:set board_timezone "$QUICKINSTALL_BOARD_TIMEZONE"
 	else
@@ -327,7 +356,7 @@ SH;
 		return "'" . str_replace("'", "'\"'\"'", $value) . "'";
 	}
 
-	private function databaseService(string $db, string $name, string $phpVersion): string
+	private function databaseService(string $db, string $name, string $phpVersion, bool $postgresDataSubdir): string
 	{
 		$dbPath = '../../db/' . $name;
 		switch ($db)
@@ -337,6 +366,7 @@ SH;
 				$command = version_compare($phpVersion, '7.4.4', '<') ? "    command: [\"--default-authentication-plugin=mysql_native_password\"]\n" : '';
 				break;
 			case 'postgres':
+				$pgdata = $postgresDataSubdir ? "      PGDATA: \"/var/lib/postgresql/data/pgdata\"\n" : '';
 				return <<<YAML
   db:
     image: postgres:16
@@ -344,10 +374,10 @@ SH;
       POSTGRES_DB: phpbb
       POSTGRES_USER: phpbb
       POSTGRES_PASSWORD: phpbb
-    volumes:
+{$pgdata}    volumes:
 {$this->bindVolume($dbPath, '/var/lib/postgresql/data')}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U phpbb -d phpbb"]
+      test: ["CMD-SHELL", "psql -U phpbb -d phpbb -tAc 'SELECT 1' 2>/dev/null | grep -qx 1"]
       interval: 5s
       timeout: 5s
       retries: 20

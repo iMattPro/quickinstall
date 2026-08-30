@@ -25,6 +25,13 @@ class BoardServiceTest extends TestCase
 		self::assertSame('demo', $result['board']['name']);
 		self::assertSame('postgres', $result['board']['db']);
 		self::assertSame(8090, $result['board']['port']);
+		self::assertSame('localhost', $result['board']['server_name']);
+		self::assertSame('/demo', $result['board']['script_path']);
+		self::assertSame('/demo/', $result['board']['cookie_path']);
+		self::assertTrue($result['board']['scoped_path']);
+		self::assertTrue($result['board']['postgres_data_subdir']);
+		self::assertSame('http://localhost:8090/demo/', $result['board']['url']);
+		self::assertSame('http://127.0.0.1:8090/demo/', $result['board']['health_url']);
 		self::assertSame('tiny', $result['board']['populate']);
 		self::assertTrue($result['board']['debug']);
 		self::assertSame('America/Los_Angeles', $result['board']['board_timezone']);

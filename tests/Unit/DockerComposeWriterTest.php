@@ -22,13 +22,16 @@ class DockerComposeWriterTest extends TestCase
 		self::assertFileExists($paths['install_config']);
 		self::assertFileExists($paths['dockerfile']);
 		self::assertFileExists($paths['entrypoint']);
+		self::assertFileExists($paths['apache_config']);
 		$entrypoint = file_get_contents($paths['entrypoint']);
 		self::assertStringContainsString('apache2-foreground', $entrypoint);
 		self::assertStringContainsString('new DateTimeZone((string) getenv("QUICKINSTALL_BOARD_TIMEZONE"))', $entrypoint);
 		self::assertStringContainsString('config:set board_timezone "$QUICKINSTALL_BOARD_TIMEZONE"', $entrypoint);
 		self::assertStringContainsString('config:set board_timezone UTC', $entrypoint);
+		self::assertStringContainsString('config:set cookie_path "${QUICKINSTALL_COOKIE_PATH:-/}"', $entrypoint);
 		self::assertStringContainsString("is unsupported by this PHP runtime; using UTC.", $entrypoint);
 		self::assertStringContainsString('QUICKINSTALL_BOARD_TIMEZONE: "America/Los_Angeles"', file_get_contents($paths['compose']));
+		self::assertStringContainsString('QUICKINSTALL_COOKIE_PATH: "/demo/"', file_get_contents($paths['compose']));
 
 		$output = file_get_contents($paths['compose']) . "\n" . file_get_contents($paths['install_config']) . "\n" . file_get_contents($paths['dockerfile']);
 		foreach ($expectedContains as $expected)
@@ -68,6 +71,8 @@ class DockerComposeWriterTest extends TestCase
 				'mysql',
 				[
 					'image: mysql:8.0',
+					'server_name: "localhost"',
+					'script_path: "/demo"',
 					'server_port: 8081',
 					'dbms: mysqli',
 					'docker-php-ext-install mysqli pdo_mysql',
@@ -89,6 +94,8 @@ class DockerComposeWriterTest extends TestCase
 				'postgres',
 				[
 					'image: postgres:16',
+					'PGDATA: "/var/lib/postgresql/data/pgdata"',
+					"psql -U phpbb -d phpbb -tAc 'SELECT 1'",
 					'dbms: postgres',
 					'docker-php-ext-install pgsql pdo_pgsql',
 				],
@@ -157,6 +164,51 @@ class DockerComposeWriterTest extends TestCase
 		self::assertStringContainsString('    name: "demo"', $installConfig);
 	}
 
+	public function testExistingBoardConfigWithoutServerNameKeepsLocalhost(): void
+	{
+		$config = $this->config();
+		unset($config['server_name']);
+		unset($config['script_path'], $config['scoped_path']);
+
+		$root = $this->createTempProjectRoot();
+		$project = new Project($root);
+		$project->init();
+		mkdir($project->boardPath('demo'), 0775, true);
+		$paths = (new DockerComposeWriter($project))->write('demo', $config);
+
+		self::assertStringContainsString('server_name: "localhost"', file_get_contents($paths['install_config']));
+		self::assertStringContainsString('script_path: "/"', file_get_contents($paths['install_config']));
+		self::assertStringNotContainsString('Alias ', file_get_contents($paths['apache_config']));
+	}
+
+	public function testExistingPostgresConfigKeepsRootDataDirectory(): void
+	{
+		$config = $this->config(['db' => 'postgres']);
+		unset($config['postgres_data_subdir']);
+
+		$root = $this->createTempProjectRoot();
+		$project = new Project($root);
+		$project->init();
+		mkdir($project->boardPath('demo'), 0775, true);
+		$paths = (new DockerComposeWriter($project))->write('demo', $config);
+		$compose = file_get_contents($paths['compose']);
+
+		self::assertStringNotContainsString('PGDATA:', $compose);
+		self::assertStringContainsString("psql -U phpbb -d phpbb -tAc 'SELECT 1'", $compose);
+	}
+
+	public function testScopedBoardWritesApacheRoute(): void
+	{
+		[, $paths] = $this->writeBoard('demo');
+		$apacheConfig = file_get_contents($paths['apache_config']);
+
+		self::assertStringContainsString('RedirectMatch 302 "^/$" "/demo/"', $apacheConfig);
+		self::assertStringContainsString('RedirectMatch 302 "^/demo$" "/demo/"', $apacheConfig);
+		self::assertStringContainsString('Alias "/demo/" "/var/www/html/"', $apacheConfig);
+		self::assertStringContainsString('LimitRequestFieldSize 65536', $apacheConfig);
+		self::assertStringContainsString('target: "/etc/apache2/conf-enabled/quickinstall.conf"', file_get_contents($paths['compose']));
+	}
+
 	public function testEntrypointExcludesBindMountsFromOwnershipChanges(): void
 	{
 		[, $paths] = $this->writeBoard('demo', [
@@ -204,6 +256,11 @@ class DockerComposeWriterTest extends TestCase
 			'php' => '8.1',
 			'db' => 'mariadb',
 			'port' => 8081,
+			'server_name' => 'localhost',
+			'script_path' => '/demo',
+			'cookie_path' => '/demo/',
+			'scoped_path' => true,
+			'postgres_data_subdir' => true,
 			'populate' => 'none',
 			'admin_name' => 'admin',
 			'admin_pass' => 'password',

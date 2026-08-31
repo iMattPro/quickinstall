@@ -19,6 +19,54 @@ function sameAction(left, right) {
 		&& left.source === right.source;
 }
 
+/** Captures a stable board or section header before dashboard markup changes. */
+function snapshotViewport(context) {
+	let kind = 'status';
+	let anchor = null;
+	if (context.board) {
+		anchor = boardHeader(context.board);
+		kind = 'board';
+	}
+	if (!anchor && context.section) {
+		const section = document.getElementById(context.section);
+		anchor = section ? section.querySelector('.section-head') : null;
+		kind = 'section';
+	}
+	if (!anchor) {
+		anchor = dashboard.querySelector('.status-strip');
+		kind = 'status';
+	}
+
+	return {
+		kind,
+		top: anchor ? anchor.getBoundingClientRect().top : null,
+		scrollY: window.scrollY,
+	};
+}
+
+/** Keeps the same stable header at the same viewport position after replacement. */
+function restoreViewport(context, snapshot) {
+	let anchor = null;
+	if (snapshot.kind === 'board') {
+		anchor = boardHeader(context.board);
+	} else if (snapshot.kind === 'section') {
+		const section = document.getElementById(context.section);
+		anchor = section ? section.querySelector('.section-head') : null;
+	} else {
+		anchor = dashboard.querySelector('.status-strip');
+	}
+
+	let target = snapshot.scrollY;
+	if (anchor && snapshot.top !== null) {
+		target = window.scrollY + anchor.getBoundingClientRect().top - snapshot.top;
+	}
+
+	const previousBehavior = document.documentElement.style.scrollBehavior;
+	document.documentElement.style.scrollBehavior = 'auto';
+	window.scrollTo(0, Math.max(0, target));
+	document.documentElement.style.scrollBehavior = previousBehavior;
+}
+
 /** Captures user-editable controls before dashboard markup is replaced. */
 function snapshotForm(form) {
 	const occurrences = new Map();
@@ -193,6 +241,7 @@ function bindAjax() {
 			}
 
 			const context = actionContext(form);
+			const viewportSnapshot = snapshotViewport(context);
 			const formSnapshot = snapshotForm(form);
 			const submitter = event.submitter;
 			const original = submitter ? submitter.innerHTML : '';
@@ -234,6 +283,7 @@ function bindAjax() {
 					syncPendingActions();
 				}
 				showActionResult(data, context);
+				restoreViewport(context, viewportSnapshot);
 				scrollLog();
 			} catch (error) {
 				completeActivityEntry(actionId, { error: 'Request failed: ' + error.message, output: '' });

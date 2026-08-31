@@ -1,5 +1,12 @@
 # QuickInstall Changelog
 
+## Version 1.8.1
+
+- [Change] QI CLI - Board URLs now use board-specific paths to isolate cookies and sessions when running multiple boards on localhost.
+- [Fix] QI CLI - Enabled Apache URL rewriting and configured rewrite paths for board-specific URLs.
+- [Fix] QI CLI - Seeded posts and private messages now use phpBB's message parser for reliable BBCode handling.
+- [Fix] QI CLI - Restored support for older phpBB 3.3.x sources installed with Composer 2 metadata.
+
 ## Version 1.8.0
 
 - [Feature] Added a local “Dashboard UI” (browser-based) workflow for the QuickInstall CLI. Start it with `php bin/qi ui:start`.
@@ -300,7 +307,7 @@
 - [Fix] Use boards_dir from configuration if it is set.
 - [Fix] Added missing settings globalization
 - [Fix] Fixes to permission granting.
-- [Fix] Made QuickInstall functional on postgres.
+- [Fix] Made QuickInstall functional on Postgres.
 - [Fix] Make sure boards_url ends with a slash.
 - [Fix] Bug #62694 Clarify that it is QI that does not support PHP older than 5.2.0 and not phpBB.
 - [Fix] Bug #62700 Put the config through `htmlspecialchars_decode()` instead of remove `request_var()`.
@@ -328,7 +335,7 @@
 - [Fix] Ticket #63305 `$language` was null when sent as default to request_var.
 - [Fix] Ticket #63306 QI needs to correctly handle an empty qi_config.cfg.
 - [Change] Added checking for functions_mods.php. It will be moved in AutoMOD in the future.
-- [Change] Include functions_admin.php for postgres benefit.
+- [Change] Include functions_admin.php for Postgres benefit.
 - [Change] Use `get_cache_dir()` in sqlite dbal.
 - [Change] Delay database connection until it is necessary.
 - [Change] Cleaned up the JS in the main HTML file.

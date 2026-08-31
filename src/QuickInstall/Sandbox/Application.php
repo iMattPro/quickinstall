@@ -298,7 +298,7 @@ class Application
 		echo "Created board scaffold: $name\n";
 		echo "Compose: {$paths['compose']}\n";
 		echo "Install config: {$paths['install_config']}\n";
-		echo "URL after start: http://localhost:$port/\n";
+		echo "URL after start: {$created['board']['url']}\n";
 		if ($populate !== 'none')
 		{
 			echo "Populate preset: $populate (runs on board:start)\n";

@@ -79,13 +79,17 @@ class BoardService
 		{
 			throw new RuntimeException("Unable to determine PHP runtime for source: {$source['source_key']}");
 		}
-
 		$config = [
 			'phpbb' => $source['version'],
 			'phpbb_source' => $source['source_key'],
 			'php' => $php,
 			'db' => $db,
 			'port' => $port,
+			'server_name' => 'localhost',
+			'script_path' => '/' . $name,
+			'cookie_path' => '/' . $name . '/',
+			'scoped_path' => true,
+			'postgres_data_subdir' => $db === 'postgres',
 			'populate' => $populate,
 			'debug' => $debug,
 			'admin_name' => 'admin',
@@ -121,7 +125,13 @@ class BoardService
 				'php' => $php,
 				'db' => $db,
 				'port' => $port,
-				'url' => "http://localhost:$port/",
+				'server_name' => $config['server_name'],
+				'script_path' => $config['script_path'],
+				'cookie_path' => $config['cookie_path'],
+				'scoped_path' => $config['scoped_path'],
+				'postgres_data_subdir' => $config['postgres_data_subdir'],
+				'url' => "http://localhost:$port/$name/",
+				'health_url' => "http://127.0.0.1:$port/$name/",
 				'path' => $boardDir,
 				'populate' => $populate,
 				'debug' => $debug,

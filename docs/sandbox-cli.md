@@ -31,7 +31,7 @@ When creation finishes, QuickInstall asks whether to start the board.
 Open:
 
 ```text
-http://localhost:8081/
+http://localhost:8081/demo/
 ```
 
 Admin login:

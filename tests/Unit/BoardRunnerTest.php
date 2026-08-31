@@ -245,6 +245,19 @@ class BoardRunnerTest extends TestCase
 		self::assertSame([['demo', 'development']], $runner->seedIfNeededRuns);
 	}
 
+	public function testStartUsesLoopbackHealthUrlWhenAvailable(): void
+	{
+		[$project] = $this->projectWithBoard([
+			'url' => 'http://demo.localhost:8080/',
+			'health_url' => 'http://127.0.0.1:8080/',
+		]);
+		$runner = new TestBoardRunner($project);
+
+		$runner->start('demo');
+
+		self::assertSame([['demo', 'http://127.0.0.1:8080/']], $runner->httpWaits);
+	}
+
 	public function testStartRejectsHeavySqliteSeededBoards(): void
 	{
 		[$project] = $this->projectWithBoard([

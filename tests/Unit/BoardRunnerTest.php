@@ -104,6 +104,21 @@ class BoardRunnerTest extends TestCase
 		self::assertFileExists($project->runtimePath('demo') . '/style-uninstall.php');
 	}
 
+	public function testUninstallLanguageCopiesAndRunsPhpbbCleanupScript(): void
+	{
+		[$project] = $this->projectWithBoard();
+		$runner = new TestBoardRunner($project);
+
+		$runner->uninstallLanguage('demo', 'de');
+
+		self::assertSame('web:/tmp/qi_language_uninstall.php', end($runner->runs[0]));
+		self::assertSame(['php', '/tmp/qi_language_uninstall.php', 'de'], array_slice($runner->runs[1], -3));
+		$script = $project->runtimePath('demo') . '/language-uninstall.php';
+		self::assertFileExists($script);
+		self::assertStringContainsString('DELETE FROM', file_get_contents($script));
+		self::assertStringContainsString('Cannot uninstall the default language.', file_get_contents($script));
+	}
+
 	public function testDestroyRunsComposeDownAndRemovesBoardData(): void
 	{
 		[$project] = $this->projectWithBoard();

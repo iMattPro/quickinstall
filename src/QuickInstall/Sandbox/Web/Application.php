@@ -20,6 +20,7 @@ use QuickInstall\Sandbox\CustomisationManagerInterface;
 use QuickInstall\Sandbox\CustomisationUnmountService;
 use QuickInstall\Sandbox\DoctorService;
 use QuickInstall\Sandbox\ExtensionManager;
+use QuickInstall\Sandbox\LanguageManager;
 use QuickInstall\Sandbox\Project;
 use QuickInstall\Sandbox\SeedPresetCatalog;
 use QuickInstall\Sandbox\SourceService;
@@ -264,6 +265,10 @@ class Application
 					$this->mountCustomisation('extension', new ExtensionManager($this->project));
 				break;
 
+				case 'customisation_mount':
+					$this->mountSelectedCustomisation();
+				break;
+
 				case 'ext_unmount':
 					$board = $this->required('board');
 					$name = $this->required('name');
@@ -282,6 +287,18 @@ class Application
 					$styles = new StyleManager($this->project);
 					(new CustomisationUnmountService($this->project, $this->output))->style($styles, $board, $name);
 					$this->notice = "Unmounted style: $name";
+				break;
+
+				case 'lang_mount':
+					$this->mountCustomisation('language', new LanguageManager($this->project));
+				break;
+
+				case 'lang_unmount':
+					$board = $this->required('board');
+					$name = $this->required('name');
+					$languages = new LanguageManager($this->project);
+					(new CustomisationUnmountService($this->project, $this->output))->language($languages, $board, $name);
+					$this->notice = "Unmounted language: $name";
 				break;
 
 				default:
@@ -379,6 +396,27 @@ class Application
 
 		$mounted = $result['mounted'][0];
 		$this->notice = "Mounted {$type}: {$mounted['name']}";
+	}
+
+	private function mountSelectedCustomisation(): void
+	{
+		$type = $this->required('type');
+		switch ($type)
+		{
+			case 'extension':
+				$this->mountCustomisation($type, new ExtensionManager($this->project));
+				return;
+
+			case 'style':
+				$this->mountCustomisation($type, new StyleManager($this->project));
+				return;
+
+			case 'language':
+				$this->mountCustomisation($type, new LanguageManager($this->project));
+				return;
+		}
+
+		throw new InvalidArgumentException('type must be one of: extension, style, language.');
 	}
 
 	private function required(string $name): string
@@ -501,16 +539,19 @@ class Application
 		$versions = (new SourceService($this->project))->supportedVersions();
 		$extensions = new ExtensionManager($this->project);
 		$styles = new StyleManager($this->project);
+		$languages = new LanguageManager($this->project);
 
 		$running = count(array_filter($boards, static function ($board) {
 			return ($board['status'] ?? '') === 'running';
 		}));
 		$mountedExtensions = 0;
 		$mountedStyles = 0;
+		$mountedLanguages = 0;
 		foreach ($boards as $board)
 		{
 			$mountedExtensions += count($board['extensions'] ?? []);
 			$mountedStyles += count($board['styles'] ?? []);
+			$mountedLanguages += count($board['languages'] ?? []);
 		}
 
 		$viewBoards = [];
@@ -519,6 +560,7 @@ class Application
 			$name = (string) $board['name'];
 			$board['mounted_extensions'] = $extensions->list($name);
 			$board['mounted_styles'] = $styles->list($name);
+			$board['mounted_languages'] = $languages->list($name);
 			$viewBoards[] = $board;
 		}
 
@@ -542,6 +584,7 @@ class Application
 				})) . ' downloaded', 'description' => 'phpBB cache'],
 				['label' => 'Extensions', 'value' => (string) $mountedExtensions, 'detail' => 'mounted', 'description' => 'Board mounts'],
 				['label' => 'Styles', 'value' => (string) $mountedStyles, 'detail' => 'mounted', 'description' => 'Board mounts'],
+				['label' => 'Languages', 'value' => (string) $mountedLanguages, 'detail' => 'mounted', 'description' => 'Board mounts'],
 			],
 			'boards' => $viewBoards,
 			'sources' => $viewSources,

@@ -332,6 +332,49 @@ On Windows, quote external paths containing spaces:
 .\bin\qi.cmd style:mount demo "C:\Path\To\My Styles\stylename" --allow-external
 ```
 
+## Languages
+
+Put downloaded language packs under `customisations/`:
+
+```text
+customisations/de/iso.txt
+```
+
+phpBB 4.x packs use `extra.language-iso` in `composer.json`; their source folder name does not need to match the ISO:
+
+```text
+customisations/german/composer.json
+```
+
+Mount one language pack or recursively discover all language packs:
+
+```bash
+php bin/qi lang:mount demo customisations/de
+php bin/qi lang:mount demo customisations --recursive
+```
+
+QuickInstall bind-mounts the pack using its validated ISO code:
+
+```text
+/var/www/html/language/de
+```
+
+List and unmount language packs:
+
+```bash
+php bin/qi lang:list demo
+php bin/qi lang:unmount demo de
+```
+
+Unmounting an installed language resets its users to the board default and removes its phpBB database records before removing files. The default language cannot be unmounted.
+
+Copy and trusted external paths work like extension and style mounts:
+
+```bash
+php bin/qi lang:mount demo customisations/de --copy
+php bin/qi lang:mount demo /path/to/de --allow-external
+```
+
 ## Supported phpBB Versions
 
 Show supported selectors:
@@ -486,7 +529,7 @@ customisations/
 - Board web ports bind to `127.0.0.1`, not every network interface.
 - `board:create` refuses to overwrite an existing board unless `--replace` is used.
 - `board:create` rejects ports already registered to another board or already in use on the host.
-- `ext:mount` and `style:mount` only use `customisations/` unless `--allow-external` is used.
+- `ext:mount`, `style:mount`, and `lang:mount` only use `customisations/` unless `--allow-external` is used.
 - Custom Git source URLs require `--allow-external`; only use trusted forks.
 - The Dashboard UI server only accepts loopback hosts (`127.0.0.1`, `localhost`, or `::1`) and rejects non-local requests.
 - `ui:start` refuses ports already in use on the selected loopback host.

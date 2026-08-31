@@ -44,6 +44,15 @@ class ApplicationTest extends TestCase
 		self::assertStringNotContainsString('extension-dev', $result['output']);
 	}
 
+	public function testLanguageCommandsAreDocumented(): void
+	{
+		$result = $this->runApplication($this->createTempProjectRoot(), ['qi', 'lang:mount', '--help']);
+
+		self::assertSame(0, $result['exit_code']);
+		self::assertStringContainsString('qi lang:mount <board> <path>', $result['output']);
+		self::assertStringContainsString('phpBB 3.x or 4.x language pack', $result['output']);
+	}
+
 	public function testInitCreatesWorkspace(): void
 	{
 		$root = $this->createTempProjectRoot();

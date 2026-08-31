@@ -258,7 +258,7 @@ button:disabled { opacity: .65; cursor: wait; }
 
 .status-strip {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 12px;
 	padding: 24px 32px 0;
 }
@@ -416,7 +416,7 @@ button:disabled { opacity: .65; cursor: wait; }
 	padding: 10px 16px 16px;
 	border-bottom: 1px solid var(--border-muted);
 }
-.mounted-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+.mounted-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
 .mounted { padding: 14px 16px; }
 .mounted + .mounted { border-left: 1px solid var(--border-muted); }
 .mounted h4 {
@@ -489,12 +489,13 @@ button:disabled { opacity: .65; cursor: wait; }
 	padding: 16px;
 }
 .settings-form h3 { grid-column: 1 / -1; }
+.settings-form > .source-field { grid-column: span 2; }
 .compact-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stack-form { grid-template-columns: 1fr 1fr; }
 .stack-form .source-field { grid-column: 1 / -1; }
 .split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; padding-top: 4px; }
-.field { display: grid; gap: 6px; color: var(--text); font-weight: 600; }
+.field { display: grid; align-content: start; gap: 6px; color: var(--text); font-weight: 600; }
 .field span { font-size: 13px; }
 .field small {
 	color: var(--muted);

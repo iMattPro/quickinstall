@@ -12,7 +12,7 @@ namespace QuickInstall\Sandbox;
 
 use RuntimeException;
 
-/** Cleans phpBB state before removing extension or style mounts. */
+/** Cleans phpBB state before removing customisation mounts. */
 class CustomisationUnmountService
 {
 	private Project $project;
@@ -39,6 +39,15 @@ class CustomisationUnmountService
 	{
 		$this->cleanInstalledBoard($board, static function (BoardRunner $runner) use ($board, $name): void {
 			$runner->uninstallStyle($board, $name);
+		});
+
+		return $this->remove($manager, $board, $name);
+	}
+
+	public function language(LanguageManager $manager, string $board, string $name): string
+	{
+		$this->cleanInstalledBoard($board, static function (BoardRunner $runner) use ($board, $name): void {
+			$runner->uninstallLanguage($board, $name);
 		});
 
 		return $this->remove($manager, $board, $name);

@@ -125,7 +125,7 @@
 					<button class="secondary">Run seed</button>
 				</form>
 				<div class="mounted-grid">
-					<?php foreach ([['Extensions', 'ext_unmount', $board['mounted_extensions']], ['Styles', 'style_unmount', $board['mounted_styles']]] as $mountGroup): ?>
+					<?php foreach ([['Extensions', 'ext_unmount', $board['mounted_extensions']], ['Styles', 'style_unmount', $board['mounted_styles']], ['Languages', 'lang_unmount', $board['mounted_languages']]] as $mountGroup): ?>
 						<?php $mountCount = count($mountGroup[2]); ?>
 						<div class="mounted">
 							<h4><span><?= $this->escape($mountGroup[0]) ?></span><span class="mounted-count"><?= $mountCount ?></span></h4>
@@ -181,28 +181,25 @@
 	<div class="section-head">
 		<div>
 			<h2><svg class="icon" aria-hidden="true"><use href="#icon-customisations"></use></svg>Customisations</h2>
-			<p>Add extensions and styles from your local projects.</p>
+			<p>Add extensions, styles, and language packs from your local projects.</p>
 		</div>
 	</div>
-	<div class="split">
-		<?php foreach ([['ext_mount', 'Mount extension'], ['style_mount', 'Mount style']] as $mountForm): ?>
-			<form method="post" class="card settings-form stack-form" data-ajax>
-				<?php require __DIR__ . '/csrf.php'; ?>
-				<h3><?= $this->escape($mountForm[1]) ?></h3>
-				<input type="hidden" name="action" value="<?= $this->escape($mountForm[0]) ?>">
-				<label class="field" title="Board that should receive this extension or style mount."><span>Board</span><select name="board"><?php foreach ($boards as $board): ?><option value="<?= $this->escape($board['name']) ?>"><?= $this->escape($board['name']) ?></option><?php endforeach; ?></select></label>
-				<label class="field source-field" title="Use a path inside customisations by default. Enable external paths to use an absolute path elsewhere on disk.">
-					<span>Path</span>
-					<input name="source" value="">
-					<small>Relative to <code>customisations/</code>, or a full path when external paths are allowed.</small>
-				</label>
-				<label class="toggle" title="Copy files into the board instead of bind mounting them from the source path."><input type="checkbox" name="copy" value="1"><span></span>Copy</label>
-				<label class="toggle" title="Discover and mount each extension or style found below the source path. Cannot be combined with copy mode."><input type="checkbox" name="recursive" value="1"><span></span>Recursive</label>
-				<label class="toggle" title="Allow the path field to point outside the customisations directory."><input type="checkbox" name="allow_external" value="1"><span></span>Allow external path</label>
-				<div class="form-actions"><button class="primary">Mount</button></div>
-			</form>
-		<?php endforeach; ?>
-	</div>
+	<form method="post" class="card settings-form" data-ajax>
+		<?php require __DIR__ . '/csrf.php'; ?>
+		<h3>Mount customisation</h3>
+		<input type="hidden" name="action" value="customisation_mount">
+		<label class="field" title="Kind of phpBB customisation to mount."><span>Type</span><select name="type"><option value="extension">Extension</option><option value="style">Style</option><option value="language">Language</option></select></label>
+		<label class="field" title="Board that should receive this customisation mount."><span>Board</span><select name="board"><?php foreach ($boards as $board): ?><option value="<?= $this->escape($board['name']) ?>"><?= $this->escape($board['name']) ?></option><?php endforeach; ?></select></label>
+		<label class="field source-field" title="Use a path inside customisations by default. Enable external paths to use an absolute path elsewhere on disk.">
+			<span>Path</span>
+			<input name="source" value="">
+			<small>Relative to <code>customisations/</code>, or a full path when external paths are allowed.</small>
+		</label>
+		<label class="toggle" title="Copy files into the board instead of bind mounting them from the source path."><input type="checkbox" name="copy" value="1"><span></span>Copy</label>
+		<label class="toggle" title="Discover and mount each selected customisation type found below the source path. Cannot be combined with copy mode."><input type="checkbox" name="recursive" value="1"><span></span>Recursive</label>
+		<label class="toggle" title="Allow the path field to point outside the customisations directory."><input type="checkbox" name="allow_external" value="1"><span></span>Allow external path</label>
+		<div class="form-actions"><button class="primary">Mount</button></div>
+	</form>
 </section>
 
 <section class="section" id="sources">

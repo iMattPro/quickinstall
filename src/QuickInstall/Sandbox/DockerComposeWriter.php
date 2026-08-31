@@ -122,6 +122,7 @@ YAML;
 		$boardPath = $this->project->boardPath($name);
 		$extensionVolumes = $this->extensionVolumes($config['extensions'] ?? []);
 		$styleVolumes = $this->styleVolumes($config['styles'] ?? []);
+		$languageVolumes = $this->languageVolumes($config['languages'] ?? []);
 		$cookiePath = $config['cookie_path'] ?? '/';
 		$rewriteBase = rtrim($config['script_path'] ?? '/', '/') . '/';
 		$dbPath = $this->project->workspacePath('db/' . $name);
@@ -142,7 +143,7 @@ services:
       # Boards are intentionally unavailable to other network devices.
       - "127.0.0.1:{$config['port']}:80"
     volumes:
-{$this->bindVolume($sourcePath, '/opt/phpbb-source', true)}{$this->bindVolume($boardPath, '/var/www/html')}{$extensionVolumes}{$styleVolumes}{$this->bindVolume('./install-config.yml', '/opt/quickinstall/install-config.yml', true)}{$this->bindVolume('./entrypoint.sh', '/opt/quickinstall/entrypoint.sh', true)}{$this->bindVolume('./apache.conf', '/etc/apache2/conf-enabled/quickinstall.conf', true)}
+{$this->bindVolume($sourcePath, '/opt/phpbb-source', true)}{$this->bindVolume($boardPath, '/var/www/html')}{$extensionVolumes}{$styleVolumes}{$languageVolumes}{$this->bindVolume('./install-config.yml', '/opt/quickinstall/install-config.yml', true)}{$this->bindVolume('./entrypoint.sh', '/opt/quickinstall/entrypoint.sh', true)}{$this->bindVolume('./apache.conf', '/etc/apache2/conf-enabled/quickinstall.conf', true)}
     entrypoint: ["/bin/sh", "/opt/quickinstall/entrypoint.sh"]
     depends_on:
       db:
@@ -221,6 +222,28 @@ APACHE;
 
 			$target = '/var/www/html/styles/' . $name;
 			$volumes .= $this->bindVolume($source, $target);
+		}
+
+		return $volumes;
+	}
+
+	private function languageVolumes(array $languages): string
+	{
+		$volumes = '';
+		foreach ($languages as $name => $language)
+		{
+			if (($language['mode'] ?? '') !== 'bind')
+			{
+				continue;
+			}
+
+			$source = $language['source'] ?? '';
+			if ($source === '')
+			{
+				continue;
+			}
+
+			$volumes .= $this->bindVolume($source, '/var/www/html/language/' . $name);
 		}
 
 		return $volumes;
@@ -344,6 +367,13 @@ SH;
 			if (($style['mode'] ?? '') === 'bind' && ($style['source'] ?? '') !== '')
 			{
 				$mountTargets[] = '/var/www/html/styles/' . $name;
+			}
+		}
+		foreach (($config['languages'] ?? []) as $name => $language)
+		{
+			if (($language['mode'] ?? '') === 'bind' && ($language['source'] ?? '') !== '')
+			{
+				$mountTargets[] = '/var/www/html/language/' . $name;
 			}
 		}
 

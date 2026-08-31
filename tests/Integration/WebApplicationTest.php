@@ -58,6 +58,9 @@ class WebApplicationTest extends TestCase
 				'vendor/four' => ['mode' => 'bind', 'source' => '/tmp/four'],
 			],
 			'styles' => [],
+			'languages' => [
+				'de' => ['mode' => 'bind', 'source' => '/tmp/de'],
+			],
 		]);
 
 		$html = $this->runWebApplication($root);
@@ -70,9 +73,17 @@ class WebApplicationTest extends TestCase
 		self::assertStringContainsString('href="#icon-activity"', $html);
 		self::assertStringContainsString('class="icon" aria-hidden="true"', $html);
 		self::assertStringContainsString('Sources', $html);
-		self::assertStringContainsString('Mount extension', $html);
-		self::assertStringContainsString('Mount style', $html);
+		self::assertStringContainsString('Mount customisation', $html);
+		self::assertStringContainsString('<input type="hidden" name="action" value="customisation_mount">', $html);
+		self::assertStringContainsString('<option value="extension">Extension</option>', $html);
+		self::assertStringContainsString('<option value="style">Style</option>', $html);
+		self::assertStringContainsString('<option value="language">Language</option>', $html);
+		self::assertSame(1, substr_count($html, '<h3>Mount customisation</h3>'));
+		self::assertStringNotContainsString('Mount extension', $html);
+		self::assertStringNotContainsString('Mount style', $html);
 		self::assertStringContainsString('<span class="mounted-count">4</span>', $html);
+		self::assertStringContainsString('<strong>de</strong>', $html);
+		self::assertMatchesRegularExpression('/<article class="metric">\s*<span>Languages<\/span>\s*<strong>1<\/strong>/s', $html);
 		self::assertSame(1, substr_count($html, 'data-mounted-extra hidden'));
 		self::assertStringContainsString('data-more-label="Show 1 more"', $html);
 		self::assertStringContainsString('board_start', $html);
@@ -164,6 +175,8 @@ class WebApplicationTest extends TestCase
 		$css = file_get_contents(dirname(__DIR__, 2) . '/public/assets/sandbox-ui.css');
 
 		self::assertIsString($css);
+		self::assertStringContainsString('grid-template-columns: repeat(5, minmax(0, 1fr));', $css);
+		self::assertStringContainsString('.field { display: grid; align-content: start;', $css);
 		self::assertStringContainsString('container-name: board-card;', $css);
 		self::assertStringContainsString('@container board-card (max-width: 560px)', $css);
 		self::assertMatchesRegularExpression('/@container board-card.+?\.mounted-grid \{ grid-template-columns: 1fr; \}/s', $css);
@@ -322,6 +335,7 @@ class WebApplicationTest extends TestCase
 			'debug' => false,
 			'extensions' => [],
 			'styles' => [],
+			'languages' => [],
 		]);
 
 		$json = $this->runWebApplicationWithCsrf($root, [
@@ -334,6 +348,21 @@ class WebApplicationTest extends TestCase
 		self::assertIsArray($data);
 		self::assertFalse($data['ok']);
 		self::assertStringContainsString('Extension path must be under customisations/', $data['error']);
+	}
+
+	public function testAjaxCustomisationMountRejectsUnknownType(): void
+	{
+		$root = $this->createTempProjectRoot();
+
+		$json = $this->runWebApplicationWithCsrf($root, [
+			'action' => 'customisation_mount',
+			'type' => 'widget',
+		], true);
+		$data = json_decode($json, true);
+
+		self::assertIsArray($data);
+		self::assertFalse($data['ok']);
+		self::assertStringContainsString('type must be one of: extension, style, language.', $data['error']);
 	}
 
 	public function testRenderShowsProjectRelativeSourcePaths(): void

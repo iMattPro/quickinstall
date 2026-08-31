@@ -52,4 +52,13 @@ class BinQiTest extends TestCase
 		self::assertSame('', $result['stdout']);
 		self::assertStringContainsString('Unknown board: missing-board', $result['stderr']);
 	}
+
+	public function testLangMountSmokeTestLoadsLanguageManager(): void
+	{
+		$result = $this->runCli(['lang:mount', 'missing-board', 'customisations/missing-language']);
+
+		self::assertSame(1, $result['exit_code']);
+		self::assertSame('', $result['stdout']);
+		self::assertStringContainsString('Unknown board: missing-board', $result['stderr']);
+	}
 }

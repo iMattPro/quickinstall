@@ -99,6 +99,7 @@ class BoardService
 			'board_timezone' => $this->hostTimezone(),
 			'extensions' => [],
 			'styles' => [],
+			'languages' => [],
 		];
 		$backups = [];
 		if ($existingName !== null)
@@ -138,6 +139,7 @@ class BoardService
 				'board_timezone' => $config['board_timezone'],
 				'extensions' => [],
 				'styles' => [],
+				'languages' => [],
 				'created_at' => gmdate('c'),
 			];
 

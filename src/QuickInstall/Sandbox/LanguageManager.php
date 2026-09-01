@@ -11,6 +11,7 @@
 namespace QuickInstall\Sandbox;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 
 /** Discovers, copies, binds, lists, and removes phpBB language packs. */
@@ -171,7 +172,15 @@ class LanguageManager implements CustomisationManagerInterface
 			throw new InvalidArgumentException("Language source must contain iso.txt or composer.json: $sourcePath");
 		}
 
-		$data = json_decode((string) file_get_contents($composer), true);
+		try
+		{
+			$data = json_decode((string) file_get_contents($composer), true, 512, JSON_THROW_ON_ERROR);
+		}
+		catch (JsonException $e)
+		{
+			throw new InvalidArgumentException("Language composer.json contains invalid JSON: $composer", 0, $e);
+		}
+
 		$name = $data['extra']['language-iso'] ?? null;
 		if (!is_string($name) || $name === '')
 		{

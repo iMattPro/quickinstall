@@ -109,6 +109,30 @@ class LanguageManagerTest extends TestCase
 		(new LanguageManager($project))->mount('demo', $source);
 	}
 
+	public function testRejectsInvalidPhpbb4ComposerJson(): void
+	{
+		[$project, $root] = $this->projectWithBoard();
+		$source = $root . '/customisations/languages/invalid';
+		mkdir($source, 0775, true);
+		file_put_contents($source . '/composer.json', '{invalid');
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage('contains invalid JSON');
+
+		(new LanguageManager($project))->mount('demo', $source);
+	}
+
+	public function testDiscoverySkipsInvalidPhpbb4ComposerJson(): void
+	{
+		[$project, $root] = $this->projectWithBoard();
+		$valid = $this->phpbb4Language($root, 'fr', 'customisations/group/french');
+		$invalid = $root . '/customisations/group/invalid';
+		mkdir($invalid, 0775, true);
+		file_put_contents($invalid . '/composer.json', '{invalid');
+
+		self::assertSame([$valid], (new LanguageManager($project))->discover('group'));
+	}
+
 	public function testRejectsExternalLanguageUnlessAllowed(): void
 	{
 		[$project, $root] = $this->projectWithBoard();

@@ -211,6 +211,8 @@ class DockerComposeWriterTest extends TestCase
 		self::assertStringContainsString('Alias "/demo/" "/var/www/html/"', $apacheConfig);
 		self::assertStringContainsString('LimitRequestFieldSize 65536', $apacheConfig);
 		self::assertStringContainsString('target: "/etc/apache2/conf-enabled/quickinstall.conf"', file_get_contents($paths['compose']));
+		self::assertStringContainsString('source: "/tmp/de-language"', file_get_contents($paths['compose']));
+		self::assertStringContainsString('target: "/var/www/html/language/de"', file_get_contents($paths['compose']));
 	}
 
 	public function testEntrypointExcludesBindMountsFromOwnershipChanges(): void
@@ -225,6 +227,10 @@ class DockerComposeWriterTest extends TestCase
 				'bound style' => ['mode' => 'bind', 'source' => '/tmp/bound-style'],
 				'copied' => ['mode' => 'copy', 'source' => '/tmp/copied-style'],
 			],
+			'languages' => [
+				'de' => ['mode' => 'bind', 'source' => '/tmp/de-language'],
+				'fr' => ['mode' => 'copy', 'source' => '/tmp/fr-language'],
+			],
 		]);
 
 		$entrypoint = file_get_contents($paths['entrypoint']);
@@ -232,9 +238,11 @@ class DockerComposeWriterTest extends TestCase
 		self::assertSame(2, substr_count($entrypoint, 'find /var/www/html'));
 		self::assertSame(2, substr_count($entrypoint, "-path '/var/www/html/ext/acme/bound' -prune -o"));
 		self::assertSame(2, substr_count($entrypoint, "-path '/var/www/html/styles/bound style' -prune -o"));
+		self::assertSame(2, substr_count($entrypoint, "-path '/var/www/html/language/de' -prune -o"));
 		self::assertStringNotContainsString('/var/www/html/ext/acme/copied', $entrypoint);
 		self::assertStringNotContainsString('/var/www/html/ext/acme/missing', $entrypoint);
 		self::assertStringNotContainsString('/var/www/html/styles/copied', $entrypoint);
+		self::assertStringNotContainsString('/var/www/html/language/fr', $entrypoint);
 		self::assertSame(2, substr_count($entrypoint, '-exec chown www-data:www-data {} +'));
 	}
 
@@ -276,6 +284,9 @@ class DockerComposeWriterTest extends TestCase
 			],
 			'styles' => [
 				'clean' => ['mode' => 'bind', 'source' => '/tmp/clean-style'],
+			],
+			'languages' => [
+				'de' => ['mode' => 'bind', 'source' => '/tmp/de-language'],
 			],
 		];
 	}

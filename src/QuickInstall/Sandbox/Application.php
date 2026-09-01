@@ -114,6 +114,15 @@ class Application
 				case 'style:list':
 					return $this->styleList($argv);
 
+				case 'lang:mount':
+					return $this->langMount($argv);
+
+				case 'lang:unmount':
+					return $this->langUnmount($argv);
+
+				case 'lang:list':
+					return $this->langList($argv);
+
 				case 'ui:start':
 					return $this->uiStart($argv);
 
@@ -156,7 +165,7 @@ class Application
 		return in_array($command, [
 			'init', 'source:fetch', 'source:remove', 'source:prune',
 			'board:create', 'board:start', 'board:stop', 'board:destroy', 'board:seed',
-			'ext:mount', 'ext:unmount', 'style:mount', 'style:unmount',
+			'ext:mount', 'ext:unmount', 'style:mount', 'style:unmount', 'lang:mount', 'lang:unmount',
 			'ui:start', 'ui:stop', 'ui:restart',
 		], true);
 	}
@@ -832,6 +841,65 @@ class Application
 		return 0;
 	}
 
+	private function langMount(array $args): int
+	{
+		$cli = CommandLine::parse($args);
+		$board = $cli->argument(0);
+		$source = $cli->argument(1);
+		if ($board === null || $source === null)
+		{
+			throw new InvalidArgumentException('Usage: qi lang:mount <board> <path> [--copy] [--recursive] [--allow-external]');
+		}
+		if ($cli->has('recursive') && $cli->has('copy'))
+		{
+			throw new InvalidArgumentException('--recursive cannot be combined with --copy. Mount recursively with bind mode, or copy individual languages.');
+		}
+
+		return $this->mountResources('language', new LanguageManager($this->project), $board, $source, $cli->has('copy'), $cli->has('recursive'), $cli->has('allow-external'));
+	}
+
+	private function langUnmount(array $args): int
+	{
+		$cli = CommandLine::parse($args);
+		$board = $cli->argument(0);
+		$name = $cli->argument(1);
+		if ($board === null || $name === null)
+		{
+			throw new InvalidArgumentException('Usage: qi lang:unmount <board> <iso>');
+		}
+
+		$languages = new LanguageManager($this->project);
+		$target = (new CustomisationUnmountService($this->project))->language($languages, $board, $name);
+		echo "Unmounted $name from $board\n";
+		echo "Removed: $target\n";
+		return 0;
+	}
+
+	private function langList(array $args): int
+	{
+		$board = $this->boardName($args, 'Usage: qi lang:list <board>');
+		$mounted = (new LanguageManager($this->project))->list($board);
+
+		if (!$mounted)
+		{
+			echo "No languages mounted for board: $board\n";
+			return 0;
+		}
+
+		$this->printTable(
+			['Language', 'Mode', 'Source'],
+			array_map(static function ($language) {
+				return [
+					$language['name'],
+					$language['mode'],
+					$language['source'],
+				];
+			}, $mounted)
+		);
+
+		return 0;
+	}
+
 	private function printBulkMountResult(string $type, string $board, array $mounted, array $errors): void
 	{
 		if (!$mounted && !$errors)
@@ -1166,6 +1234,52 @@ class Application
 					],
 					'examples' => [
 						'style:list demo',
+					],
+				],
+			],
+			'Language commands' => [
+				'lang:mount' => [
+					'title' => 'lang:mount',
+					'usage' => 'lang:mount <board> <path> [--copy] [--recursive] [--allow-external]',
+					'summary' => 'Mount one or more language packs into a board.',
+					'description' => 'Mounts a phpBB 3.x or 4.x language pack from the customisations drop zone. Running boards are refreshed automatically.',
+					'arguments' => [
+						'<board>' => 'Required board name.',
+						'<path>' => 'Language-pack path, or a directory to scan when --recursive is used.',
+					],
+					'options' => [
+						'--copy' => 'Copy one language pack instead of bind-mounting it.',
+						'--recursive' => 'Find and bind-mount all language packs below <path>. Cannot be combined with --copy.',
+						'--allow-external' => 'Allow trusted paths outside the customisations drop zone.',
+					],
+					'examples' => [
+						'lang:mount demo customisations/de',
+						'lang:mount demo customisations --recursive',
+					],
+				],
+				'lang:unmount' => [
+					'title' => 'lang:unmount',
+					'usage' => 'lang:unmount <board> <iso>',
+					'summary' => 'Remove a mounted language pack from a board.',
+					'description' => 'Uninstalls the language from phpBB before removing its mount or copied files. Installed boards must be running.',
+					'arguments' => [
+						'<board>' => 'Required board name.',
+						'<iso>' => 'Language ISO from the folder name or composer.json metadata.',
+					],
+					'examples' => [
+						'lang:unmount demo de',
+					],
+				],
+				'lang:list' => [
+					'title' => 'lang:list',
+					'usage' => 'lang:list <board>',
+					'summary' => 'Show language packs mounted on a board.',
+					'description' => 'Lists mounted language packs, mount mode, and source path for one board.',
+					'arguments' => [
+						'<board>' => 'Required board name.',
+					],
+					'examples' => [
+						'lang:list demo',
 					],
 				],
 			],

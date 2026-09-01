@@ -3,6 +3,8 @@ const busy = document.getElementById('busy');
 const pendingActions = new Map();
 const activityEntries = [];
 const maxActivityEntries = 50;
+const expandedBoards = new Set();
+let boardFilter = '';
 let nextActionId = 1;
 
 function updateProcessingState() {
@@ -11,12 +13,133 @@ function updateProcessingState() {
 	document.documentElement.classList.toggle('is-processing', active);
 }
 
-function sameAction(left, right) {
-	return left.action === right.action
-		&& left.board === right.board
-		&& left.section === right.section
-		&& left.name === right.name
-		&& left.source === right.source;
+function sameForm(left, right) {
+	return left.formKey === right.formKey;
+}
+
+/** Captures a stable board or section header before dashboard markup changes. */
+function snapshotViewport(context) {
+	let kind = 'status';
+	let anchor = null;
+	if (context.board) {
+		anchor = boardHeader(context.board);
+		kind = 'board';
+	}
+	if (!anchor && context.section) {
+		const section = document.getElementById(context.section);
+		anchor = section ? section.querySelector('.section-head') : null;
+		kind = 'section';
+	}
+	if (!anchor) {
+		anchor = dashboard.querySelector('.status-strip');
+		kind = 'status';
+	}
+
+	return {
+		kind,
+		top: anchor ? anchor.getBoundingClientRect().top : null,
+		scrollY: window.scrollY,
+	};
+}
+
+/** Keeps the same stable header at the same viewport position after replacement. */
+function restoreViewport(context, snapshot) {
+	let anchor = null;
+	if (snapshot.kind === 'board') {
+		anchor = boardHeader(context.board);
+	} else if (snapshot.kind === 'section') {
+		const section = document.getElementById(context.section);
+		anchor = section ? section.querySelector('.section-head') : null;
+	} else {
+		anchor = dashboard.querySelector('.status-strip');
+	}
+
+	let target = snapshot.scrollY;
+	if (anchor && snapshot.top !== null) {
+		target = window.scrollY + anchor.getBoundingClientRect().top - snapshot.top;
+	}
+
+	const previousBehavior = document.documentElement.style.scrollBehavior;
+	document.documentElement.style.scrollBehavior = 'auto';
+	window.scrollTo(0, Math.max(0, target));
+	document.documentElement.style.scrollBehavior = previousBehavior;
+}
+
+function filterBoards(manager, query) {
+	const normalized = query.trim().toLocaleLowerCase();
+	const rows = Array.from(manager.querySelectorAll('[data-board-row]'));
+	rows.forEach((row) => {
+		row.hidden = normalized !== '' && !row.textContent.toLocaleLowerCase().includes(normalized);
+	});
+
+	const visible = rows.filter((row) => !row.hidden);
+	const noResults = manager.querySelector('[data-board-no-results]');
+	if (noResults) {
+		noResults.hidden = visible.length !== 0;
+	}
+}
+
+function setBoardExpanded(row, toggle, details, expanded) {
+	toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+	details.hidden = !expanded;
+	row.classList.toggle('is-expanded', expanded);
+	if (expanded) {
+		expandedBoards.add(row.dataset.board);
+	} else {
+		expandedBoards.delete(row.dataset.board);
+	}
+}
+
+function bindBoardManager() {
+	const manager = dashboard.querySelector('[data-board-manager]');
+	if (!manager || manager.dataset.bound) {
+		return;
+	}
+
+	manager.dataset.bound = '1';
+	const rows = Array.from(manager.querySelectorAll('[data-board-row]'));
+	const filter = manager.querySelector('[data-board-filter]');
+	const boardNames = new Set(rows.map((row) => row.dataset.board));
+	expandedBoards.forEach((name) => {
+		if (!boardNames.has(name)) {
+			expandedBoards.delete(name);
+		}
+	});
+
+	rows.forEach((row) => {
+		const toggle = row.querySelector('[data-board-toggle]');
+		const details = row.querySelector('[data-board-details]');
+		const surface = row.querySelector('.board-row-main');
+		if (!toggle || !details || !surface) {
+			return;
+		}
+
+		setBoardExpanded(row, toggle, details, expandedBoards.has(row.dataset.board));
+		toggle.addEventListener('click', () => {
+			const shouldExpand = toggle.getAttribute('aria-expanded') !== 'true';
+			setBoardExpanded(row, toggle, details, shouldExpand);
+		});
+		surface.addEventListener('click', (event) => {
+			if (event.target.closest('a, button, input, select, textarea, label, form')) {
+				return;
+			}
+			const selection = window.getSelection();
+			if (selection && !selection.isCollapsed && selection.toString().trim() !== '') {
+				return;
+			}
+
+			setBoardExpanded(row, toggle, details, toggle.getAttribute('aria-expanded') !== 'true');
+		});
+	});
+
+	if (filter) {
+		filter.value = boardFilter;
+		filter.addEventListener('input', () => {
+			boardFilter = filter.value;
+			filterBoards(manager, boardFilter);
+		});
+		filterBoards(manager, boardFilter);
+	}
 }
 
 /** Captures user-editable controls before dashboard markup is replaced. */
@@ -41,14 +164,8 @@ function snapshotForm(form) {
 
 /** Finds the regenerated form without relying on mutable field values. */
 function actionForm(context) {
-	const candidates = Array.from(dashboard.querySelectorAll('form[data-ajax]')).filter((form) => {
-		const candidate = actionContext(form);
-		return candidate.action === context.action
-			&& candidate.board === context.board
-			&& candidate.section === context.section;
-	});
-
-	return candidates.find((form) => sameAction(actionContext(form), context)) || (candidates.length === 1 ? candidates[0] : null);
+	return Array.from(dashboard.querySelectorAll('form[data-ajax]'))
+		.find((form) => sameForm(actionContext(form), context)) || null;
 }
 
 /** Restores submitted values after an error response regenerates the dashboard. */
@@ -79,8 +196,7 @@ function restoreForm(context, snapshot) {
 /** Reapplies pending state after AJAX replaces dashboard markup. */
 function syncPendingActions() {
 	pendingActions.forEach((pending) => {
-		const form = Array.from(dashboard.querySelectorAll('form[data-ajax]'))
-			.find((candidate) => sameAction(actionContext(candidate), pending.context));
+		const form = actionForm(pending.context);
 		const submitter = form ? form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]') : null;
 		if (!submitter) {
 			return;
@@ -97,8 +213,23 @@ function syncPendingActions() {
 
 function actionLabel(context) {
 	const action = context.action.replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
-	const target = context.board || context.name || context.source;
-	return target ? action + ' — ' + target : action;
+	const details = [context.type, context.targetBoard, context.name, context.source]
+		.filter((value, index, values) => value && values.indexOf(value) === index);
+
+	if (context.action === 'customisation_mount') {
+		if (context.copy) {
+			details.push('copy');
+		} else if (context.recursive) {
+			details.push('recursive');
+		} else {
+			details.push('bind');
+		}
+		if (context.allowExternal) {
+			details.push('external path');
+		}
+	}
+
+	return details.length ? action + ' — ' + details.join(' · ') : action;
 }
 
 function addActivityEntry(actionId, context) {
@@ -177,6 +308,7 @@ function renderActivityLog() {
 }
 
 function bindAjax() {
+	bindBoardManager();
 	bindUpdateBanner();
 	bindMountedLists();
 
@@ -193,6 +325,7 @@ function bindAjax() {
 			}
 
 			const context = actionContext(form);
+			const viewportSnapshot = snapshotViewport(context);
 			const formSnapshot = snapshotForm(form);
 			const submitter = event.submitter;
 			const original = submitter ? submitter.innerHTML : '';
@@ -234,10 +367,14 @@ function bindAjax() {
 					syncPendingActions();
 				}
 				showActionResult(data, context);
+				restoreViewport(context, viewportSnapshot);
 				scrollLog();
 			} catch (error) {
-				completeActivityEntry(actionId, { error: 'Request failed: ' + error.message, output: '' });
-				alert('Request failed: ' + error.message);
+				const message = 'Request failed: ' + error.message;
+				completeActivityEntry(actionId, { error: message, output: '' });
+				showActionResult({ error: message }, context);
+				restoreViewport(context, viewportSnapshot);
+				scrollLog();
 			} finally {
 				const pending = pendingActions.get(actionId);
 				pendingActions.delete(actionId);
@@ -316,17 +453,44 @@ function bindUpdateBanner() {
 	});
 }
 
+/** Builds an immutable key for locating the same form after dashboard replacement. */
+function actionFormKey(form, formData) {
+	const action = formData.get('action') || '';
+	const section = form.closest('section');
+	const board = form.closest('[data-board]');
+	let repeatedTarget = '';
+	if (['ext_unmount', 'style_unmount', 'lang_unmount'].includes(action)) {
+		repeatedTarget = formData.get('name') || '';
+	} else if (action === 'source_remove') {
+		repeatedTarget = formData.get('source') || '';
+	}
+
+	return JSON.stringify([
+		section ? section.id : '',
+		board ? board.dataset.board : '',
+		action,
+		repeatedTarget,
+	]);
+}
+
 function actionContext(form) {
 	const formData = new FormData(form);
 	const section = form.closest('section');
 	const board = form.closest('[data-board]');
+	const contextualBoard = board ? board.dataset.board : '';
 
 	return {
 		action: formData.get('action') || '',
-		board: board ? board.dataset.board : '',
+		board: contextualBoard,
+		targetBoard: formData.get('board') || contextualBoard,
 		name: formData.get('name') || '',
 		section: section ? section.id : '',
 		source: formData.get('source') || '',
+		type: formData.get('type') || '',
+		copy: formData.has('copy'),
+		recursive: formData.has('recursive'),
+		allowExternal: formData.has('allow_external'),
+		formKey: actionFormKey(form, formData),
 	};
 }
 
@@ -347,10 +511,7 @@ function showActionResult(data, context) {
 	result.textContent = message;
 
 	let target = null;
-	if (context.board) {
-		target = boardHeader(context.board);
-	}
-	if (!target && context.section) {
+	if (context.section) {
 		const section = document.getElementById(context.section);
 		target = section ? section.querySelector('.section-head') : null;
 	}
@@ -375,7 +536,7 @@ function boardHeader(name) {
 	const boards = dashboard.querySelectorAll('[data-board]');
 	for (const board of boards) {
 		if (board.dataset.board === name) {
-			return board.querySelector('.card-head');
+			return board.querySelector('.board-row-main');
 		}
 	}
 

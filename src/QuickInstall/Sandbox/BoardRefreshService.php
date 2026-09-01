@@ -50,6 +50,7 @@ class BoardRefreshService
 			'debug' => false,
 			'extensions' => [],
 			'styles' => [],
+			'languages' => [],
 		];
 	}
 }

@@ -5,6 +5,7 @@ namespace QuickInstall\Tests\Unit;
 use QuickInstall\Sandbox\BoardRunner;
 use QuickInstall\Sandbox\CustomisationUnmountService;
 use QuickInstall\Sandbox\ExtensionManager;
+use QuickInstall\Sandbox\LanguageManager;
 use QuickInstall\Sandbox\Project;
 use QuickInstall\Sandbox\StyleManager;
 use QuickInstall\Tests\Support\TempProjectTrait;
@@ -54,6 +55,22 @@ class CustomisationUnmountServiceTest extends \PHPUnit\Framework\TestCase
 		self::assertSame('demo', $manager->list('demo')[0]['name']);
 	}
 
+	public function testUninstallsLanguageBeforeUnmountingInstalledBoard(): void
+	{
+		[$project, $root] = $this->projectWithBoard();
+		$source = $root . '/customisations/languages/de';
+		mkdir($source, 0775, true);
+		file_put_contents($source . '/iso.txt', "German\nDeutsch\nphpBB\n");
+		$manager = new LanguageManager($project);
+		$manager->mount('demo', $source);
+		$runner = new UnmountTestBoardRunner($project);
+
+		(new CustomisationUnmountService($project, null, $runner))->language($manager, 'demo', 'de');
+
+		self::assertSame([['language', 'demo', 'de']], $runner->uninstalls);
+		self::assertSame([], $manager->list('demo'));
+	}
+
 	private function projectWithBoard(): array
 	{
 		$root = $this->createTempProjectRoot();
@@ -71,6 +88,7 @@ class CustomisationUnmountServiceTest extends \PHPUnit\Framework\TestCase
 			'url' => 'http://localhost:8080/',
 			'extensions' => [],
 			'styles' => [],
+			'languages' => [],
 		]);
 
 		return [$project, $root];
@@ -99,6 +117,11 @@ class UnmountTestBoardRunner extends BoardRunner
 			throw new RuntimeException('cleanup failed');
 		}
 		$this->uninstalls[] = ['style', $board, $name];
+	}
+
+	public function uninstallLanguage(string $board, string $name): void
+	{
+		$this->uninstalls[] = ['language', $board, $name];
 	}
 
 	public function recreateWeb(string $name): void

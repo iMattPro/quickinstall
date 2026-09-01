@@ -174,6 +174,15 @@ class BoardRunner
 		$this->run(['docker', 'compose', '-f', $compose, 'exec', '-T', 'web', 'php', '/tmp/qi_style_uninstall.php', $name]);
 	}
 
+	/** Removes an installed language from phpBB before its files disappear. */
+	public function uninstallLanguage(string $board, string $name): void
+	{
+		$script = (new LanguageUninstallerWriter($this->project))->write($board);
+		$compose = $this->project->composePath($board);
+		$this->run(['docker', 'compose', '-f', $compose, 'cp', $script, 'web:/tmp/qi_language_uninstall.php']);
+		$this->run(['docker', 'compose', '-f', $compose, 'exec', '-T', 'web', 'php', '/tmp/qi_language_uninstall.php', $name]);
+	}
+
 	public function recreateWeb(string $name): void
 	{
 		$this->project->board($name);

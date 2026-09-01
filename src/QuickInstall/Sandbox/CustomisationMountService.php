@@ -13,7 +13,7 @@ namespace QuickInstall\Sandbox;
 use InvalidArgumentException;
 use RuntimeException;
 
-/** Coordinates single or recursive extension/style mounts and board refreshes. */
+/** Coordinates single or recursive customisation mounts and board refreshes. */
 class CustomisationMountService
 {
 	private Project $project;

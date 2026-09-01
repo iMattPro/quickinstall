@@ -44,21 +44,23 @@
 		</aside>
 		<main class="main">
 			<header class="topbar">
-				<div>
-					<h1>QuickInstall Dashboard</h1>
-					<p class="lede">Create and manage local phpBB boards for development and testing.</p>
-				</div>
-				<div class="actions">
-					<form method="post" data-ajax>
-						<?php require __DIR__ . '/csrf.php'; ?>
-						<input type="hidden" name="action" value="doctor">
-						<button class="secondary"><svg class="icon" aria-hidden="true"><use href="#icon-doctor"></use></svg>Run Doctor</button>
-					</form>
-					<form method="post" data-ajax>
-						<?php require __DIR__ . '/csrf.php'; ?>
-						<input type="hidden" name="action" value="init">
-						<button class="primary"><svg class="icon" aria-hidden="true"><use href="#icon-init"></use></svg>Init workspace</button>
-					</form>
+				<div class="topbar-inner">
+					<div>
+						<h1>QuickInstall Dashboard</h1>
+						<p class="lede">Create and manage local phpBB boards for development and testing.</p>
+					</div>
+					<div class="actions">
+						<form method="post" data-ajax>
+							<?php require __DIR__ . '/csrf.php'; ?>
+							<input type="hidden" name="action" value="doctor">
+							<button class="secondary"><svg class="icon" aria-hidden="true"><use href="#icon-doctor"></use></svg>Run Doctor</button>
+						</form>
+						<form method="post" data-ajax>
+							<?php require __DIR__ . '/csrf.php'; ?>
+							<input type="hidden" name="action" value="init">
+							<button class="primary"><svg class="icon" aria-hidden="true"><use href="#icon-init"></use></svg>Init workspace</button>
+						</form>
+					</div>
 				</div>
 			</header>
 			<div id="dashboard" class="content">

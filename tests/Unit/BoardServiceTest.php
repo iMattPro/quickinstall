@@ -35,6 +35,7 @@ class BoardServiceTest extends TestCase
 		self::assertSame('tiny', $result['board']['populate']);
 		self::assertTrue($result['board']['debug']);
 		self::assertSame('America/Los_Angeles', $result['board']['board_timezone']);
+		self::assertSame([], $result['board']['languages']);
 		self::assertSame('demo', $project->boards()['demo']['name']);
 		self::assertFileExists($project->composePath('demo'));
 	}

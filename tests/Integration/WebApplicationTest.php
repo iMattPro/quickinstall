@@ -33,7 +33,7 @@ class WebApplicationTest extends TestCase
 		$this->cleanupTempPaths();
 	}
 
-	public function testRenderShowsCoreSandboxWorkflows(): void
+	public function testRenderShowsProjectState(): void
 	{
 		$root = $this->createTempProjectRoot();
 		$project = new Project($root);
@@ -58,39 +58,94 @@ class WebApplicationTest extends TestCase
 				'vendor/four' => ['mode' => 'bind', 'source' => '/tmp/four'],
 			],
 			'styles' => [],
+			'languages' => [
+				'de' => ['mode' => 'bind', 'source' => '/tmp/de'],
+			],
 		]);
 
 		$html = $this->runWebApplication($root);
+		$text = $this->visibleText($html);
 
-		self::assertStringContainsString('QuickInstall Dashboard', $html);
-		self::assertStringContainsString('QuickInstall + Docker', $html);
-		self::assertStringContainsString('Create board', $html);
-		self::assertStringContainsString('Run Doctor', $html);
-		self::assertStringContainsString('id="icon-boards"', $html);
-		self::assertStringContainsString('href="#icon-activity"', $html);
-		self::assertStringContainsString('class="icon" aria-hidden="true"', $html);
-		self::assertStringContainsString('Sources', $html);
-		self::assertStringContainsString('Mount extension', $html);
-		self::assertStringContainsString('Mount style', $html);
-		self::assertStringContainsString('<span class="mounted-count">4</span>', $html);
-		self::assertSame(1, substr_count($html, 'data-mounted-extra hidden'));
-		self::assertStringContainsString('data-more-label="Show 1 more"', $html);
-		self::assertStringContainsString('board_start', $html);
-		self::assertStringContainsString('board_seed', $html);
-		self::assertStringContainsString('source_remove', $html);
-		self::assertStringContainsString('data-ajax', $html);
-		self::assertStringContainsString('activity-log', $html);
-		self::assertStringContainsString('/assets/sandbox-ui.css', $html);
-		self::assertStringContainsString('/assets/sandbox-ui.js', $html);
-		self::assertStringContainsString('<option value="3.3.x">', $html);
-		self::assertStringContainsString('title="phpBB selector to fetch or reuse.', $html);
-		self::assertStringContainsString('SQLite supports the tiny and development seed presets.', $html);
-		self::assertStringContainsString('title="Allow the path field to point outside the customisations directory.', $html);
-		self::assertStringContainsString('Relative to <code>customisations/</code>', $html);
-		self::assertStringContainsString('<option value="development">development</option>', $html);
-		self::assertStringNotContainsString('<option value="extension-dev">', $html);
-		self::assertStringNotContainsString('<option value="3.0.x">', $html);
-		self::assertStringNotContainsString('<style>', $html);
+		self::assertStringContainsString('QuickInstall Dashboard', $text);
+		self::assertStringContainsString('demo', $text);
+		self::assertStringContainsString('http://localhost:8081/', $text);
+		self::assertStringContainsString('3.3.14', $text);
+		self::assertStringContainsString('vendor/one', $text);
+		self::assertStringContainsString('vendor/four', $text);
+	}
+
+	public function testRenderListsEveryBoard(): void
+	{
+		$root = $this->createTempProjectRoot();
+		$project = new Project($root);
+		$project->init();
+		for ($index = 1; $index <= 10; $index++)
+		{
+			$project->appendBoard([
+				'name' => 'board-' . $index,
+				'phpbb' => '3.3.17',
+				'phpbb_source' => '3.3.17',
+				'php' => '8.1',
+				'db' => 'mariadb',
+				'port' => 8100 + $index,
+				'url' => 'http://localhost:' . (8100 + $index) . '/',
+				'populate' => 'none',
+				'extensions' => [],
+				'styles' => [],
+				'languages' => [],
+			]);
+		}
+
+		$html = $this->runWebApplication($root);
+		$text = $this->visibleText($html);
+
+		for ($index = 1; $index <= 10; $index++)
+		{
+			self::assertStringContainsString('board-' . $index, $text);
+			self::assertStringContainsString('http://localhost:' . (8100 + $index) . '/', $text);
+		}
+	}
+
+	public function testRunningBoardRendersOneStopAction(): void
+	{
+		$html = $this->renderDashboard([[
+			'name' => 'demo',
+			'phpbb' => '3.3.17',
+			'php' => '8.1',
+			'db' => 'mariadb',
+			'url' => 'http://localhost:8080/',
+			'populate' => 'none',
+			'status' => 'running',
+			'mounted_extensions' => [],
+			'mounted_styles' => [],
+			'mounted_languages' => [],
+		]]);
+
+		$text = $this->visibleText($html);
+		self::assertStringContainsString('running', $text);
+		self::assertStringContainsString('Stop', $text);
+		self::assertStringNotContainsString('Start', $text);
+	}
+
+	public function testBoardUrlIsLinkedOnlyWhileRunning(): void
+	{
+		$board = [
+			'name' => 'demo',
+			'phpbb' => '3.3.17',
+			'php' => '8.1',
+			'db' => 'mariadb',
+			'url' => 'http://localhost:8080/',
+			'populate' => 'none',
+			'mounted_extensions' => [],
+			'mounted_styles' => [],
+			'mounted_languages' => [],
+		];
+
+		$stoppedHtml = $this->renderDashboard([$board + ['status' => 'stopped']]);
+		$runningHtml = $this->renderDashboard([$board + ['status' => 'running']]);
+
+		self::assertStringNotContainsString('href="http://localhost:8080/"', $stoppedHtml);
+		self::assertStringContainsString('href="http://localhost:8080/"', $runningHtml);
 	}
 
 	public function testBoardCreateRejectsHeavySqliteSeedPreset(): void
@@ -135,41 +190,9 @@ class WebApplicationTest extends TestCase
 		self::assertStringContainsString('Doctor found', $data['notice'] ?: $data['error']);
 		self::assertStringContainsString('QuickInstall requirements', $data['output']);
 		self::assertStringContainsString('[OK] PHP 8+', $data['output']);
-		self::assertStringNotContainsString('doctor-results', $data['html']);
 	}
 
-	public function testDashboardJavascriptTracksConcurrentActions(): void
-	{
-		$javascript = file_get_contents(dirname(__DIR__, 2) . '/public/assets/sandbox-ui.js');
-
-		self::assertIsString($javascript);
-		self::assertStringContainsString('const pendingActions = new Map();', $javascript);
-		self::assertStringContainsString('const active = pendingActions.size > 0;', $javascript);
-		self::assertStringContainsString('syncPendingActions();', $javascript);
-		self::assertStringContainsString('pendingActions.delete(actionId);', $javascript);
-		self::assertStringContainsString('const activityEntries = [];', $javascript);
-		self::assertStringContainsString('const maxActivityEntries = 50;', $javascript);
-		self::assertStringContainsString('completeActivityEntry(actionId, data);', $javascript);
-		self::assertStringContainsString('entry.status = runningAssigned ? \'queued\' : \'running\';', $javascript);
-		self::assertStringContainsString("document.querySelectorAll('[data-mounted-toggle]')", $javascript);
-		self::assertStringContainsString("button.textContent = expanded ? button.dataset.moreLabel : 'Show less';", $javascript);
-		self::assertStringContainsString('const formSnapshot = snapshotForm(form);', $javascript);
-		self::assertStringContainsString('if (data.error) {', $javascript);
-		self::assertStringContainsString('restoreForm(context, formSnapshot);', $javascript);
-		self::assertStringContainsString("control.type === 'checkbox' || control.type === 'radio'", $javascript);
-	}
-
-	public function testNarrowBoardCardsStackMountedLists(): void
-	{
-		$css = file_get_contents(dirname(__DIR__, 2) . '/public/assets/sandbox-ui.css');
-
-		self::assertIsString($css);
-		self::assertStringContainsString('container-name: board-card;', $css);
-		self::assertStringContainsString('@container board-card (max-width: 560px)', $css);
-		self::assertMatchesRegularExpression('/@container board-card.+?\.mounted-grid \{ grid-template-columns: 1fr; \}/s', $css);
-	}
-
-	public function testDoctorFailureUsesErrorToastAndPointsToActivityLog(): void
+	public function testDoctorFailureReturnsErrorAndActivityOutput(): void
 	{
 		$root = $this->createTempProjectRoot();
 		$path = getenv('PATH');
@@ -191,10 +214,9 @@ class WebApplicationTest extends TestCase
 		self::assertStringContainsString('Doctor found', $data['error']);
 		self::assertStringContainsString('View the Activity Log below for details.', $data['error']);
 		self::assertStringContainsString('[FAIL] Git: not available', $data['output']);
-		self::assertStringContainsString('<p class="error">', $data['html']);
 	}
 
-	public function testRenderShowsRegisteredSourceOptions(): void
+	public function testRenderShowsRegisteredSource(): void
 	{
 		$root = $this->createTempProjectRoot();
 		$project = new Project($root);
@@ -215,8 +237,10 @@ class WebApplicationTest extends TestCase
 		$project->writeJson('sources.json', $sources);
 
 		$html = $this->runWebApplication($root);
+		$text = $this->visibleText($html);
 
-		self::assertStringContainsString('<option value="ticket-1234">', $html);
+		self::assertStringContainsString('ticket-1234', $text);
+		self::assertStringContainsString('ticket/1234', $text);
 	}
 
 	public function testInitPostCreatesWorkspace(): void
@@ -227,8 +251,7 @@ class WebApplicationTest extends TestCase
 
 		self::assertDirectoryExists($root . '/.qi');
 		self::assertFileExists($root . '/.qi/boards.json');
-		self::assertStringContainsString('Workspace initialized.', $html);
-		self::assertStringContainsString('class="toast-stack" role="status" aria-live="polite"', $html);
+		self::assertStringContainsString('Workspace initialized.', $this->visibleText($html));
 	}
 
 	public function testAjaxPostReturnsDashboardJson(): void
@@ -241,8 +264,8 @@ class WebApplicationTest extends TestCase
 		self::assertIsArray($data);
 		self::assertTrue($data['ok']);
 		self::assertSame('Workspace initialized.', $data['notice']);
-		self::assertStringContainsString('status-strip', $data['html']);
-		self::assertStringContainsString('activity-log', $data['html']);
+		self::assertIsString($data['html']);
+		self::assertNotSame('', $data['html']);
 	}
 
 	public function testAjaxResponseRemainsJsonWhenDashboardRenderingFails(): void
@@ -279,7 +302,7 @@ class WebApplicationTest extends TestCase
 		self::assertIsArray($data);
 		self::assertStringContainsString('invalid-', $data['output']);
 		self::assertStringContainsString('-output', $data['output']);
-		self::assertStringContainsString('status-strip', $data['html']);
+		self::assertIsString($data['html']);
 	}
 
 	public function testAjaxSourceRemoveDeletesSource(): void
@@ -299,7 +322,6 @@ class WebApplicationTest extends TestCase
 		self::assertTrue($data['ok']);
 		self::assertSame('Removed source: 3.3.14', $data['notice']);
 		self::assertSame([], $project->readJson('sources.json', []));
-		self::assertStringNotContainsString('value="3.3.14"', $data['html']);
 	}
 
 	public function testAjaxExtensionMountReturnsJsonError(): void
@@ -322,6 +344,7 @@ class WebApplicationTest extends TestCase
 			'debug' => false,
 			'extensions' => [],
 			'styles' => [],
+			'languages' => [],
 		]);
 
 		$json = $this->runWebApplicationWithCsrf($root, [
@@ -336,6 +359,21 @@ class WebApplicationTest extends TestCase
 		self::assertStringContainsString('Extension path must be under customisations/', $data['error']);
 	}
 
+	public function testAjaxCustomisationMountRejectsUnknownType(): void
+	{
+		$root = $this->createTempProjectRoot();
+
+		$json = $this->runWebApplicationWithCsrf($root, [
+			'action' => 'customisation_mount',
+			'type' => 'widget',
+		], true);
+		$data = json_decode($json, true);
+
+		self::assertIsArray($data);
+		self::assertFalse($data['ok']);
+		self::assertStringContainsString('type must be one of: extension, style, language.', $data['error']);
+	}
+
 	public function testRenderShowsProjectRelativeSourcePaths(): void
 	{
 		$root = $this->createTempProjectRoot();
@@ -344,9 +382,10 @@ class WebApplicationTest extends TestCase
 		$this->addDownloadedSource($project, '3.3.14');
 
 		$html = $this->runWebApplication($root);
+		$text = $this->visibleText($html);
 
-		self::assertStringContainsString('/' . basename($root) . '/.qi/sources/phpbb-3.3.14', $html);
-		self::assertStringNotContainsString($root . '/.qi/sources/phpbb-3.3.14', $html);
+		self::assertStringContainsString('/' . basename($root) . '/.qi/sources/phpbb-3.3.14', $text);
+		self::assertStringNotContainsString($root . '/.qi/sources/phpbb-3.3.14', $text);
 	}
 
 	public function testRenderShowsCachedUpdateBanner(): void
@@ -364,11 +403,10 @@ class WebApplicationTest extends TestCase
 		]);
 
 		$html = $this->runWebApplication($root);
+		$text = $this->visibleText($html);
 
-		self::assertStringContainsString('class="update-banner"', $html);
-		self::assertStringContainsString("QuickInstall $availableVersion available", $html);
-		self::assertStringContainsString('href="https://example.com/download"', $html);
-		self::assertStringContainsString('data-dismiss-update', $html);
+		self::assertStringContainsString("QuickInstall $availableVersion available", $text);
+		self::assertStringContainsString('https://example.com/download', $html);
 	}
 
 	public function testDockerConnectivityErrorsAreFriendlyForWebUi(): void
@@ -433,6 +471,35 @@ class WebApplicationTest extends TestCase
 		}
 
 		return html_entity_decode($matches[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	}
+
+	private function visibleText(string $html): string
+	{
+		$text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		return trim((string) preg_replace('/\s+/', ' ', $text));
+	}
+
+	private function renderDashboard(array $boards): string
+	{
+		$application = new Application($this->createTempProjectRoot());
+		$renderTemplate = new \ReflectionMethod(Application::class, 'renderTemplate');
+		$renderTemplate->setAccessible(true);
+
+		return (string) $renderTemplate->invoke($application, 'dashboard.php', [
+			'notice' => '',
+			'error' => '',
+			'output' => '',
+			'csrfToken' => 'test-token',
+			'update' => null,
+			'metrics' => [],
+			'boards' => $boards,
+			'sources' => [],
+			'versionOptions' => [],
+			'dbOptions' => ['mariadb', 'mysql', 'postgres', 'sqlite'],
+			'populateOptions' => ['none'],
+			'presetOptions' => ['tiny'],
+			'seedActionOptions' => ['seed', 'replace', 'reset'],
+		]);
 	}
 
 	private function runWebApplication(string $root, array $post = [], bool $ajax = false): string

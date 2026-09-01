@@ -3,6 +3,8 @@ const busy = document.getElementById('busy');
 const pendingActions = new Map();
 const activityEntries = [];
 const maxActivityEntries = 50;
+const expandedBoards = new Set();
+let boardFilter = '';
 let nextActionId = 1;
 
 function updateProcessingState() {
@@ -65,6 +67,83 @@ function restoreViewport(context, snapshot) {
 	document.documentElement.style.scrollBehavior = 'auto';
 	window.scrollTo(0, Math.max(0, target));
 	document.documentElement.style.scrollBehavior = previousBehavior;
+}
+
+function filterBoards(manager, query) {
+	const normalized = query.trim().toLocaleLowerCase();
+	const rows = Array.from(manager.querySelectorAll('[data-board-row]'));
+	rows.forEach((row) => {
+		row.hidden = normalized !== '' && !row.textContent.toLocaleLowerCase().includes(normalized);
+	});
+
+	const visible = rows.filter((row) => !row.hidden);
+	const noResults = manager.querySelector('[data-board-no-results]');
+	if (noResults) {
+		noResults.hidden = visible.length !== 0;
+	}
+}
+
+function setBoardExpanded(row, toggle, details, expanded) {
+	toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+	details.hidden = !expanded;
+	row.classList.toggle('is-expanded', expanded);
+	if (expanded) {
+		expandedBoards.add(row.dataset.board);
+	} else {
+		expandedBoards.delete(row.dataset.board);
+	}
+}
+
+function bindBoardManager() {
+	const manager = dashboard.querySelector('[data-board-manager]');
+	if (!manager || manager.dataset.bound) {
+		return;
+	}
+
+	manager.dataset.bound = '1';
+	const rows = Array.from(manager.querySelectorAll('[data-board-row]'));
+	const filter = manager.querySelector('[data-board-filter]');
+	const boardNames = new Set(rows.map((row) => row.dataset.board));
+	expandedBoards.forEach((name) => {
+		if (!boardNames.has(name)) {
+			expandedBoards.delete(name);
+		}
+	});
+
+	rows.forEach((row) => {
+		const toggle = row.querySelector('[data-board-toggle]');
+		const details = row.querySelector('[data-board-details]');
+		const surface = row.querySelector('.board-row-main');
+		if (!toggle || !details || !surface) {
+			return;
+		}
+
+		setBoardExpanded(row, toggle, details, expandedBoards.has(row.dataset.board));
+		toggle.addEventListener('click', () => {
+			const shouldExpand = toggle.getAttribute('aria-expanded') !== 'true';
+			setBoardExpanded(row, toggle, details, shouldExpand);
+		});
+		surface.addEventListener('click', (event) => {
+			if (event.target.closest('a, button, input, select, textarea, label, form')) {
+				return;
+			}
+			const selection = window.getSelection();
+			if (selection && !selection.isCollapsed && selection.toString().trim() !== '') {
+				return;
+			}
+
+			setBoardExpanded(row, toggle, details, toggle.getAttribute('aria-expanded') !== 'true');
+		});
+	});
+
+	if (filter) {
+		filter.value = boardFilter;
+		filter.addEventListener('input', () => {
+			boardFilter = filter.value;
+			filterBoards(manager, boardFilter);
+		});
+		filterBoards(manager, boardFilter);
+	}
 }
 
 /** Captures user-editable controls before dashboard markup is replaced. */
@@ -225,6 +304,7 @@ function renderActivityLog() {
 }
 
 function bindAjax() {
+	bindBoardManager();
 	bindUpdateBanner();
 	bindMountedLists();
 
@@ -286,8 +366,11 @@ function bindAjax() {
 				restoreViewport(context, viewportSnapshot);
 				scrollLog();
 			} catch (error) {
-				completeActivityEntry(actionId, { error: 'Request failed: ' + error.message, output: '' });
-				alert('Request failed: ' + error.message);
+				const message = 'Request failed: ' + error.message;
+				completeActivityEntry(actionId, { error: message, output: '' });
+				showActionResult({ error: message }, context);
+				restoreViewport(context, viewportSnapshot);
+				scrollLog();
 			} finally {
 				const pending = pendingActions.get(actionId);
 				pendingActions.delete(actionId);
@@ -397,10 +480,7 @@ function showActionResult(data, context) {
 	result.textContent = message;
 
 	let target = null;
-	if (context.board) {
-		target = boardHeader(context.board);
-	}
-	if (!target && context.section) {
+	if (context.section) {
 		const section = document.getElementById(context.section);
 		target = section ? section.querySelector('.section-head') : null;
 	}
@@ -425,7 +505,7 @@ function boardHeader(name) {
 	const boards = dashboard.querySelectorAll('[data-board]');
 	for (const board of boards) {
 		if (board.dataset.board === name) {
-			return board.querySelector('.card-head');
+			return board.querySelector('.board-row-main');
 		}
 	}
 

@@ -66,66 +66,86 @@
 			<span>Create boards below. When they are ready, they will appear here.</span>
 		</div>
 	<?php endif; ?>
-	<div class="board-grid">
+	<?php if ($boards): ?>
+		<div class="board-manager card" data-board-manager>
+			<div class="board-manager-head">
+				<div class="board-manager-title"><h3>All boards</h3><span><?= count($boards) ?> total</span></div>
+				<label class="field board-search"><span>Filter boards</span><input type="search" data-board-filter autocomplete="off" placeholder="Name, status, version…"></label>
+			</div>
+			<div class="board-table-head" aria-hidden="true">
+				<span>Board</span>
+				<span class="board-fact-headings"><span>phpBB</span><span>PHP</span><span>DB</span><span>Populate</span></span>
+				<span>Customisations</span>
+				<span>Actions &amp; status</span>
+			</div>
+			<div class="board-list" role="list" aria-label="Boards">
 		<?php foreach ($boards as $board): ?>
 			<?php
 			$name = (string) $board['name'];
 			$status = (string) ($board['status'] ?? 'unknown');
 			$url = (string) ($board['url'] ?? '');
+			$detailsId = 'board-details-' . $name;
+			$extensionCount = count($board['mounted_extensions']);
+			$styleCount = count($board['mounted_styles']);
+			$languageCount = count($board['mounted_languages']);
+			$isRunning = $status === 'running';
+			$isRetry = in_array($status, ['partial', 'error'], true);
+			$lifecycleAction = $isRunning ? 'board_stop' : 'board_start';
+			$lifecycleLabel = $isRunning ? 'Stop' : ($isRetry ? 'Retry' : 'Start');
 			?>
-			<article class="board card" data-board="<?= $this->escape($name) ?>">
-				<div class="card-head">
-					<div>
-						<h3><?= $this->escape($name) ?></h3>
-						<p class="url">
-							<?php if ($status === 'running' && $url !== ''): ?>
-								<a href="<?= $this->escape($url) ?>" target="_blank" rel="noreferrer"><?= $this->escape($url) ?></a>
-							<?php else: ?>
-								<?= $this->escape($url) ?>
-							<?php endif; ?>
-						</p>
+			<article class="board board-row" role="listitem" data-board="<?= $this->escape($name) ?>" data-board-row>
+				<div class="board-row-main">
+					<div class="board-identity">
+						<button type="button" class="board-disclosure" title="Board details: mounted customisations and seed controls" aria-label="Board details for <?= $this->escape($name) ?>: customisations, mounts, and seed controls" aria-expanded="false" aria-controls="<?= $this->escape($detailsId) ?>" data-board-toggle><span class="board-toggle-icon" aria-hidden="true"></span></button>
+						<div class="board-identity-copy">
+							<h3 title="<?= $this->escape($name) ?>"><?= $this->escape($name) ?></h3>
+							<p class="url">
+								<?php if ($url !== ''): ?>
+									<a href="<?= $this->escape($url) ?>" title="<?= $this->escape($url) ?>" target="_blank" rel="noreferrer"><?= $this->escape($url) ?></a>
+								<?php else: ?>
+									<span class="muted">No URL</span>
+								<?php endif; ?>
+							</p>
+						</div>
 					</div>
-					<span class="badge status-<?= $this->escape($status) ?>"><?= $this->escape($status) ?></span>
+					<dl class="board-facts">
+						<div><dt>phpBB</dt><dd><?= $this->escape($board['phpbb'] ?? '') ?></dd></div>
+						<div><dt>PHP</dt><dd><?= $this->escape($board['php'] ?? '') ?></dd></div>
+						<div><dt>DB</dt><dd><?= $this->escape($board['db'] ?? '') ?></dd></div>
+						<div><dt>Populate</dt><dd><?= $this->escape($board['populate'] ?? 'none') ?></dd></div>
+					</dl>
+					<dl class="board-customisations">
+						<div>
+							<dt>Customisations</dt>
+							<dd class="board-customisation-counts">
+								<span title="<?= $extensionCount ?> extension<?= $extensionCount === 1 ? '' : 's' ?>" aria-label="<?= $extensionCount ?> extension<?= $extensionCount === 1 ? '' : 's' ?>"><strong><?= $extensionCount ?></strong> Ext</span>
+								<span title="<?= $styleCount ?> style<?= $styleCount === 1 ? '' : 's' ?>" aria-label="<?= $styleCount ?> style<?= $styleCount === 1 ? '' : 's' ?>"><strong><?= $styleCount ?></strong> Style</span>
+								<span title="<?= $languageCount ?> language<?= $languageCount === 1 ? '' : 's' ?>" aria-label="<?= $languageCount ?> language<?= $languageCount === 1 ? '' : 's' ?>"><strong><?= $languageCount ?></strong> Lang</span>
+							</dd>
+						</div>
+					</dl>
+					<div class="board-actions-cell">
+						<div class="actions board-actions">
+							<form method="post" data-ajax>
+								<?php require __DIR__ . '/csrf.php'; ?>
+								<input type="hidden" name="action" value="<?= $this->escape($lifecycleAction) ?>">
+								<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
+								<button class="<?= $isRunning ? 'secondary' : 'primary' ?> button-small board-lifecycle-button"><?= $this->escape($lifecycleLabel) ?></button>
+							</form>
+							<form method="post" data-ajax data-confirm="<?= $this->escape('Destroy board ' . $name . '? This removes its files, database, containers, and local image.') ?>">
+								<?php require __DIR__ . '/csrf.php'; ?>
+								<input type="hidden" name="action" value="board_destroy">
+								<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
+								<button class="danger button-small board-destroy-button">Destroy</button>
+							</form>
+						</div>
+						<span class="badge status-<?= $this->escape($status) ?>"><?= $this->escape($status) ?></span>
+					</div>
 				</div>
-				<dl class="facts">
-					<div><dt>phpBB</dt><dd><?= $this->escape($board['phpbb'] ?? '') ?></dd></div>
-					<div><dt>PHP</dt><dd><?= $this->escape($board['php'] ?? '') ?></dd></div>
-					<div><dt>Database</dt><dd><?= $this->escape($board['db'] ?? '') ?></dd></div>
-					<div><dt>Populate</dt><dd><?= $this->escape($board['populate'] ?? 'none') ?></dd></div>
-				</dl>
-				<div class="actions compact">
-					<a class="button secondary" href="<?= $this->escape($board['url'] ?? '') ?>" target="_blank" rel="noreferrer">Open</a>
-					<form method="post" data-ajax>
-						<?php require __DIR__ . '/csrf.php'; ?>
-						<input type="hidden" name="action" value="board_start">
-						<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
-						<button class="primary">Start</button>
-					</form>
-					<form method="post" data-ajax>
-						<?php require __DIR__ . '/csrf.php'; ?>
-						<input type="hidden" name="action" value="board_stop">
-						<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
-						<button class="secondary">Stop</button>
-					</form>
-					<form method="post" data-ajax data-confirm="<?= $this->escape('Destroy board ' . $name . '? This removes its files, database, containers, and local image.') ?>">
-						<?php require __DIR__ . '/csrf.php'; ?>
-						<input type="hidden" name="action" value="board_destroy">
-						<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
-						<button class="danger">Destroy</button>
-					</form>
-				</div>
-				<div class="subsection-title">Seed content</div>
-				<form method="post" class="seed-form" data-ajax>
-					<?php require __DIR__ . '/csrf.php'; ?>
-					<input type="hidden" name="action" value="board_seed">
-					<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
-					<label class="field" title="Preset controls how much sample content is generated."><span>Preset</span><select name="preset"><?php foreach ($presetOptions as $option): ?><option value="<?= $this->escape($option) ?>"><?= $this->escape($option) ?></option><?php endforeach; ?></select></label>
-					<label class="field" title="Numeric seed for repeatable generated content. Use the same seed to reproduce the same data."><span>Seed</span><input name="seed" value="1"></label>
-					<label class="field" title="Seed adds content, replace swaps generated content, and reset clears generated content."><span>Action</span><select name="seed_action"><?php foreach ($seedActionOptions as $option): ?><option value="<?= $this->escape($option) ?>"><?= $this->escape($option) ?></option><?php endforeach; ?></select></label>
-					<button class="secondary">Run seed</button>
-				</form>
-				<div class="mounted-grid">
-					<?php foreach ([['Extensions', 'ext_unmount', $board['mounted_extensions']], ['Styles', 'style_unmount', $board['mounted_styles']], ['Languages', 'lang_unmount', $board['mounted_languages']]] as $mountGroup): ?>
+				<div class="board-details" id="<?= $this->escape($detailsId) ?>" data-board-details hidden>
+					<div class="subsection-title">Mounted customisations</div>
+					<div class="mounted-grid">
+						<?php foreach ([['Extensions', 'ext_unmount', $board['mounted_extensions']], ['Styles', 'style_unmount', $board['mounted_styles']], ['Languages', 'lang_unmount', $board['mounted_languages']]] as $mountGroup): ?>
 						<?php $mountCount = count($mountGroup[2]); ?>
 						<div class="mounted">
 							<h4><span><?= $this->escape($mountGroup[0]) ?></span><span class="mounted-count"><?= $mountCount ?></span></h4>
@@ -148,11 +168,25 @@
 								<button type="button" class="mounted-toggle" data-mounted-toggle data-more-label="Show <?= $mountCount - 3 ?> more" aria-expanded="false">Show <?= $mountCount - 3 ?> more</button>
 							<?php endif; ?>
 						</div>
-					<?php endforeach; ?>
+						<?php endforeach; ?>
+					</div>
+					<div class="subsection-title seed-title">Seed content</div>
+					<form method="post" class="seed-form" data-ajax>
+						<?php require __DIR__ . '/csrf.php'; ?>
+						<input type="hidden" name="action" value="board_seed">
+						<input type="hidden" name="name" value="<?= $this->escape($name) ?>">
+						<label class="field" title="Preset controls how much sample content is generated."><span>Preset</span><select name="preset"><?php foreach ($presetOptions as $option): ?><option value="<?= $this->escape($option) ?>"><?= $this->escape($option) ?></option><?php endforeach; ?></select></label>
+						<label class="field" title="Numeric seed for repeatable generated content. Use the same seed to reproduce the same data."><span>Seed</span><input name="seed" value="1"></label>
+						<label class="field" title="Seed adds content, replace swaps generated content, and reset clears generated content."><span>Action</span><select name="seed_action"><?php foreach ($seedActionOptions as $option): ?><option value="<?= $this->escape($option) ?>"><?= $this->escape($option) ?></option><?php endforeach; ?></select></label>
+						<button class="secondary">Run seed</button>
+					</form>
 				</div>
 			</article>
 		<?php endforeach; ?>
-	</div>
+				<p class="board-no-results" data-board-no-results hidden>No boards match this filter.</p>
+			</div>
+		</div>
+	<?php endif; ?>
 </section>
 
 <section class="section" id="create">
@@ -208,7 +242,7 @@
 			<p>Manage the phpBB versions available for your boards.</p>
 		</div>
 	</div>
-	<form method="post" class="card settings-form compact-form joined-form" data-ajax>
+	<form method="post" class="card settings-form joined-form" data-ajax>
 		<?php require __DIR__ . '/csrf.php'; ?>
 		<input type="hidden" name="action" value="source_fetch">
 		<label class="field" title="phpBB selector to download or register, such as latest, 3.3, 3.2, master, or a branch name."><span>Version or branch</span><input name="version" value="latest"></label>
@@ -220,7 +254,7 @@
 	<?php if (!$sources): ?>
 		<div class="empty"><strong>No sources registered</strong><span>Fetch a phpBB source above. When it is downloaded, it will appear here.</span></div>
 	<?php else: ?>
-		<div class="table-wrap">
+		<div class="table-wrap" role="region" aria-label="Registered phpBB sources" tabindex="0">
 			<table>
 				<thead><tr><th>Source</th><th>Version</th><th>Status</th><th>Downloaded</th><th>Used by</th><th class="path-column">Path</th><th class="actions-column">Actions</th></tr></thead>
 				<tbody>

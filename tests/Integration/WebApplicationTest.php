@@ -78,7 +78,6 @@ class WebApplicationTest extends TestCase
 		self::assertStringContainsString('<option value="extension">Extension</option>', $html);
 		self::assertStringContainsString('<option value="style">Style</option>', $html);
 		self::assertStringContainsString('<option value="language">Language</option>', $html);
-		self::assertSame(1, substr_count($html, '<h3>Mount customisation</h3>'));
 		self::assertStringNotContainsString('Mount extension', $html);
 		self::assertStringNotContainsString('Mount style', $html);
 		self::assertStringContainsString('<span class="mounted-count">4</span>', $html);

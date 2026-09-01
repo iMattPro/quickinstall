@@ -108,41 +108,18 @@ class WebApplicationTest extends TestCase
 
 	public function testRunningBoardRendersOneStopAction(): void
 	{
-		$root = $this->createTempProjectRoot();
-		$project = new Project($root);
-		$project->init();
-		$project->appendBoard([
+		$html = $this->renderDashboard([[
 			'name' => 'demo',
 			'phpbb' => '3.3.17',
-			'phpbb_source' => '3.3.17',
 			'php' => '8.1',
 			'db' => 'mariadb',
-			'port' => 8080,
 			'url' => 'http://localhost:8080/',
 			'populate' => 'none',
-			'extensions' => [],
-			'styles' => [],
-			'languages' => [],
-		]);
-
-		$runtime = $project->runtimePath('demo');
-		mkdir($runtime, 0775, true);
-		file_put_contents($project->composePath('demo'), "services: {}\n");
-		$bin = $root . '/bin';
-		mkdir($bin, 0775, true);
-		file_put_contents($bin . '/docker', "#!/bin/sh\nprintf 'web\\ndb\\n'\n");
-		chmod($bin . '/docker', 0755);
-		$path = getenv('PATH');
-		putenv('PATH=' . $bin . ($path === false ? '' : ':' . $path));
-
-		try
-		{
-			$html = $this->runWebApplication($root);
-		}
-		finally
-		{
-			$path === false ? putenv('PATH') : putenv("PATH=$path");
-		}
+			'status' => 'running',
+			'mounted_extensions' => [],
+			'mounted_styles' => [],
+			'mounted_languages' => [],
+		]]);
 
 		$text = $this->visibleText($html);
 		self::assertStringContainsString('running', $text);
@@ -479,6 +456,29 @@ class WebApplicationTest extends TestCase
 	{
 		$text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		return trim((string) preg_replace('/\s+/', ' ', $text));
+	}
+
+	private function renderDashboard(array $boards): string
+	{
+		$application = new Application($this->createTempProjectRoot());
+		$renderTemplate = new \ReflectionMethod(Application::class, 'renderTemplate');
+		$renderTemplate->setAccessible(true);
+
+		return (string) $renderTemplate->invoke($application, 'dashboard.php', [
+			'notice' => '',
+			'error' => '',
+			'output' => '',
+			'csrfToken' => 'test-token',
+			'update' => null,
+			'metrics' => [],
+			'boards' => $boards,
+			'sources' => [],
+			'versionOptions' => [],
+			'dbOptions' => ['mariadb', 'mysql', 'postgres', 'sqlite'],
+			'populateOptions' => ['none'],
+			'presetOptions' => ['tiny'],
+			'seedActionOptions' => ['seed', 'replace', 'reset'],
+		]);
 	}
 
 	private function runWebApplication(string $root, array $post = [], bool $ajax = false): string

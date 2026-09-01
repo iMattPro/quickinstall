@@ -100,8 +100,10 @@
 						<div class="board-identity-copy">
 							<h3 title="<?= $this->escape($name) ?>"><?= $this->escape($name) ?></h3>
 							<p class="url">
-								<?php if ($url !== ''): ?>
+								<?php if ($url !== '' && $isRunning): ?>
 									<a href="<?= $this->escape($url) ?>" title="<?= $this->escape($url) ?>" target="_blank" rel="noreferrer"><?= $this->escape($url) ?></a>
+								<?php elseif ($url !== ''): ?>
+									<span title="<?= $this->escape($url) ?>"><?= $this->escape($url) ?></span>
 								<?php else: ?>
 									<span class="muted">No URL</span>
 								<?php endif; ?>

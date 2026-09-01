@@ -127,6 +127,27 @@ class WebApplicationTest extends TestCase
 		self::assertStringNotContainsString('Start', $text);
 	}
 
+	public function testBoardUrlIsLinkedOnlyWhileRunning(): void
+	{
+		$board = [
+			'name' => 'demo',
+			'phpbb' => '3.3.17',
+			'php' => '8.1',
+			'db' => 'mariadb',
+			'url' => 'http://localhost:8080/',
+			'populate' => 'none',
+			'mounted_extensions' => [],
+			'mounted_styles' => [],
+			'mounted_languages' => [],
+		];
+
+		$stoppedHtml = $this->renderDashboard([$board + ['status' => 'stopped']]);
+		$runningHtml = $this->renderDashboard([$board + ['status' => 'running']]);
+
+		self::assertStringNotContainsString('href="http://localhost:8080/"', $stoppedHtml);
+		self::assertStringContainsString('href="http://localhost:8080/"', $runningHtml);
+	}
+
 	public function testBoardCreateRejectsHeavySqliteSeedPreset(): void
 	{
 		$root = $this->createTempProjectRoot();

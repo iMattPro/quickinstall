@@ -13,12 +13,8 @@ function updateProcessingState() {
 	document.documentElement.classList.toggle('is-processing', active);
 }
 
-function sameAction(left, right) {
-	return left.action === right.action
-		&& left.board === right.board
-		&& left.section === right.section
-		&& left.name === right.name
-		&& left.source === right.source;
+function sameForm(left, right) {
+	return left.formKey === right.formKey;
 }
 
 /** Captures a stable board or section header before dashboard markup changes. */
@@ -168,14 +164,8 @@ function snapshotForm(form) {
 
 /** Finds the regenerated form without relying on mutable field values. */
 function actionForm(context) {
-	const candidates = Array.from(dashboard.querySelectorAll('form[data-ajax]')).filter((form) => {
-		const candidate = actionContext(form);
-		return candidate.action === context.action
-			&& candidate.board === context.board
-			&& candidate.section === context.section;
-	});
-
-	return candidates.find((form) => sameAction(actionContext(form), context)) || (candidates.length === 1 ? candidates[0] : null);
+	return Array.from(dashboard.querySelectorAll('form[data-ajax]'))
+		.find((form) => sameForm(actionContext(form), context)) || null;
 }
 
 /** Restores submitted values after an error response regenerates the dashboard. */
@@ -206,8 +196,7 @@ function restoreForm(context, snapshot) {
 /** Reapplies pending state after AJAX replaces dashboard markup. */
 function syncPendingActions() {
 	pendingActions.forEach((pending) => {
-		const form = Array.from(dashboard.querySelectorAll('form[data-ajax]'))
-			.find((candidate) => sameAction(actionContext(candidate), pending.context));
+		const form = actionForm(pending.context);
 		const submitter = form ? form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]') : null;
 		if (!submitter) {
 			return;
@@ -224,8 +213,23 @@ function syncPendingActions() {
 
 function actionLabel(context) {
 	const action = context.action.replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
-	const target = context.board || context.name || context.source;
-	return target ? action + ' — ' + target : action;
+	const details = [context.type, context.targetBoard, context.name, context.source]
+		.filter((value, index, values) => value && values.indexOf(value) === index);
+
+	if (context.action === 'customisation_mount') {
+		if (context.copy) {
+			details.push('copy');
+		} else if (context.recursive) {
+			details.push('recursive');
+		} else {
+			details.push('bind');
+		}
+		if (context.allowExternal) {
+			details.push('external path');
+		}
+	}
+
+	return details.length ? action + ' — ' + details.join(' · ') : action;
 }
 
 function addActivityEntry(actionId, context) {
@@ -449,17 +453,44 @@ function bindUpdateBanner() {
 	});
 }
 
+/** Builds an immutable key for locating the same form after dashboard replacement. */
+function actionFormKey(form, formData) {
+	const action = formData.get('action') || '';
+	const section = form.closest('section');
+	const board = form.closest('[data-board]');
+	let repeatedTarget = '';
+	if (['ext_unmount', 'style_unmount', 'lang_unmount'].includes(action)) {
+		repeatedTarget = formData.get('name') || '';
+	} else if (action === 'source_remove') {
+		repeatedTarget = formData.get('source') || '';
+	}
+
+	return JSON.stringify([
+		section ? section.id : '',
+		board ? board.dataset.board : '',
+		action,
+		repeatedTarget,
+	]);
+}
+
 function actionContext(form) {
 	const formData = new FormData(form);
 	const section = form.closest('section');
 	const board = form.closest('[data-board]');
+	const contextualBoard = board ? board.dataset.board : '';
 
 	return {
 		action: formData.get('action') || '',
-		board: board ? board.dataset.board : '',
+		board: contextualBoard,
+		targetBoard: formData.get('board') || contextualBoard,
 		name: formData.get('name') || '',
 		section: section ? section.id : '',
 		source: formData.get('source') || '',
+		type: formData.get('type') || '',
+		copy: formData.has('copy'),
+		recursive: formData.has('recursive'),
+		allowExternal: formData.has('allow_external'),
+		formKey: actionFormKey(form, formData),
 	};
 }
 

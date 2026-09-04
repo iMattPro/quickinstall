@@ -1,5 +1,13 @@
 # QuickInstall Changelog
 
+## Version 1.8.2
+
+- [Feature] QI CLI and Dashboard UI - Added support for mounting, listing, and safely unmounting phpBB 3.x and 4.x language packs.
+- [Change] Dashboard UI - Redesigned board management as a searchable, responsive table with compact board details and expandable mount and seed controls.
+- [Change] Dashboard UI - Combined extension, style, and language mounting into a single customisation form.
+- [Fix] Dashboard UI - Preserved the current scroll position, board filter, expanded board details, form values, and pending-action state during live dashboard updates.
+- [Fix] Dashboard UI - Improved concurrent customisation request tracking and activity descriptions, including the selected board, type, source, and mount mode.
+
 ## Version 1.8.1
 
 - [Change] QI CLI - Board URLs now use board-specific paths to isolate cookies and sessions when running multiple boards on localhost.
